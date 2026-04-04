@@ -22,10 +22,22 @@ mod test_transport;
 ///
 /// # Example
 ///
-/// ```ignore
-/// let mut scdc = Scdc::new(transport);
-/// let sink_version = scdc.read_sink_version().await?;
-/// scdc.write_source_version(1).await?;
+/// ```rust
+/// use culvert_async::Scdc;
+/// use hdmi_hal_async::scdc::ScdcTransport;
+///
+/// struct StubTransport;
+/// impl ScdcTransport for StubTransport {
+///     type Error = core::convert::Infallible;
+///     async fn read(&mut self, _reg: u8) -> Result<u8, Self::Error> { Ok(0) }
+///     async fn write(&mut self, _reg: u8, _value: u8) -> Result<(), Self::Error> { Ok(()) }
+/// }
+///
+/// # pollster::block_on(async {
+/// let mut scdc = Scdc::new(StubTransport);
+/// let sink_version = scdc.read_sink_version().await.unwrap();
+/// scdc.write_source_version(1).await.unwrap();
+/// # });
 /// ```
 pub struct Scdc<T> {
     transport: T,
