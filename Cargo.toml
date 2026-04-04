@@ -21,4 +21,5 @@ hdmi-hal-async = { version = "0.1.0", default-features = false }
 plumbob-async = { version = "0.1.0", optional = true, default-features = false }
 
 [dev-dependencies]
+display-types = { version = "0.3.1", default-features = false }
 pollster = { version = "0.3", features = ["macro"] }

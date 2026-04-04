@@ -23,6 +23,7 @@ name = "culvert-async"
 version = "0.1.0"
 dependencies = [
  "culvert",
+ "display-types",
  "hdmi-hal-async",
  "plumbob-async",
  "pollster",
