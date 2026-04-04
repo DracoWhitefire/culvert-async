@@ -37,3 +37,9 @@ cargo llvm-cov --all-features
 The current baseline is stored in `.coverage-baseline`. CI fails if coverage drops more
 than 0.1% below it. On pushes to `main` or `develop`, an improvement automatically opens
 a `ci/coverage-ratchet` PR to commit the new baseline.
+
+## Running the example
+
+```sh
+cargo run --example scdc
+```
