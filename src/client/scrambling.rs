@@ -2,8 +2,8 @@ use hdmi_hal_async::scdc::ScdcTransport;
 
 use crate::{ScdcError, ScramblerStatus, TmdsConfig};
 
-use super::address;
 use super::Scdc;
+use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
     /// Writes scrambling configuration to `TMDS_Config` (0x20).

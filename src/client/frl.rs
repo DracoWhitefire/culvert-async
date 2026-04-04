@@ -2,8 +2,8 @@ use hdmi_hal_async::scdc::ScdcTransport;
 
 use crate::{FrlConfig, LtpReq, ProtocolError, ScdcError, StatusFlags};
 
-use super::address;
 use super::Scdc;
+use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
     /// Writes FRL training configuration to `Config_0` (0x30).
@@ -109,7 +109,17 @@ mod tests {
         let mut scdc = Scdc::new(TestTransport::new());
         assert_eq!(
             scdc.read_status_flags().await.unwrap(),
-            StatusFlags::new(false, false, false, false, false, false, false, false, LtpReq::None)
+            StatusFlags::new(
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                LtpReq::None
+            )
         );
     }
 

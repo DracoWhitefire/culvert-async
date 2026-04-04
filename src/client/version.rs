@@ -2,8 +2,8 @@ use hdmi_hal_async::scdc::ScdcTransport;
 
 use crate::ScdcError;
 
-use super::address;
 use super::Scdc;
+use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
     /// Reads the sink's SCDC protocol version from `Sink_Version` (0x01).

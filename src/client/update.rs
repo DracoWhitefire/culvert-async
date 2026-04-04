@@ -2,8 +2,8 @@ use hdmi_hal_async::scdc::ScdcTransport;
 
 use crate::{ScdcError, UpdateFlags};
 
-use super::address;
 use super::Scdc;
+use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
     /// Reads update flags from `Update_0` (0x10) and `Update_1` (0x11).
@@ -60,7 +60,13 @@ mod tests {
         // status_update = bit 0 of Update_0
         let mut sim = TestTransport::new();
         sim.set(0x10, 0x01);
-        assert!(Scdc::new(sim).read_update_flags().await.unwrap().status_update);
+        assert!(
+            Scdc::new(sim)
+                .read_update_flags()
+                .await
+                .unwrap()
+                .status_update
+        );
 
         // ced_update = bit 1
         let mut sim = TestTransport::new();

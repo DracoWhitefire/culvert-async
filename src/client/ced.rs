@@ -2,8 +2,8 @@ use hdmi_hal_async::scdc::ScdcTransport;
 
 use crate::{CedCount, CedCounters, ScdcError};
 
-use super::address;
 use super::Scdc;
+use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
     /// Reads per-lane character error counts from `ERR_DET` registers (0x50–0x57).
