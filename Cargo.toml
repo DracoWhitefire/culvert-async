@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Async typed access to the HDMI 2.1 SCDC register map"
+readme = "README.md"
 license = "MPL-2.0"
 repository = "https://github.com/DracoWhitefire/culvert-async"
 keywords = ["hdmi", "scdc", "frl", "embedded", "no-std"]
