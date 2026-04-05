@@ -62,7 +62,6 @@ fn ltp_req(req: LtpReq) -> plumbob_async::LtpReq {
         LtpReq::Lfsr1 => plumbob_async::LtpReq::Lfsr1,
         LtpReq::Lfsr2 => plumbob_async::LtpReq::Lfsr2,
         LtpReq::Lfsr3 => plumbob_async::LtpReq::Lfsr3,
-        _ => unreachable!("unknown LtpReq variant"),
     }
 }
 
