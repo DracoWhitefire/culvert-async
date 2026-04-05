@@ -41,6 +41,28 @@ Each register group has tests covering:
   `TestTransport::failing_after(n)` test that triggers failure at that exact operation
   and asserts the error bubbles through as `ScdcError::Transport`.
 
+### Example (`examples/scdc/main.rs`)
+
+`examples/scdc/main.rs` is a runnable end-to-end smoke test against a
+`SimulatedScdc` transport — a 256-byte register array that implements
+`hdmi_hal_async::scdc::ScdcTransport` with `async fn` methods and
+`core::convert::Infallible` as its error type. Registers are pre-loaded
+with a plausible 6 Gbps 3-lane FRL sink state and the example exercises
+every method in the public API: all six read paths and all five write
+paths. It uses `pollster::block_on` to drive the async executor, keeping
+the example free of any runtime dependency.
+
+Run it with:
+
+```sh
+cargo run --example scdc
+```
+
+The example is not part of the coverage measurement (examples are excluded
+from `cargo llvm-cov` by default), but it serves as a quick sanity check
+that the full read/write round-trip works end-to-end before cutting a
+release.
+
 ### `plumbob-async` feature tests (`src/client/plumbob_client.rs`)
 
 When compiled with `--features plumbob-async`, additional tests exercise the
