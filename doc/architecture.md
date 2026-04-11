@@ -199,6 +199,9 @@ The principles are the same as culvert's:
 - **No unsafe code.** `#![forbid(unsafe_code)]`.
 - **Parity with culvert.** When culvert adds a method or register group, culvert-async
   adds its async mirror in the same release. The two crates move in lockstep.
+- **Attested releases.** Every release is published through a GitHub Actions workflow
+  that signs the `.crate` package with [SLSA Build Level 2](https://slsa.dev) provenance.
+  Verify with `gh attestation verify <file> --repo DracoWhitefire/culvert-async`.
 
 ---
 
