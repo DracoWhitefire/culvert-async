@@ -16,7 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Status_Flags_0` only; link training requests are read per lane with
   `read_ltp_requests`; `UpdateFlags` decodes all `Update_0` flags. `FrlConfig`,
   `FfeLevels`, `StatusFlags`, `UpdateFlags` and `LtpReq` follow culvert's new definitions.
-- **`ScdcTransport::read` takes `&self`** (from `hdmi-hal-async`).
+- **`hdmi-hal-async` updated to 0.2**: `Scdc<T>`'s transport implements hdmi-hal-async
+  0.2's `ScdcTransport`, whose `read` takes `&self` instead of `&mut self`. Transports
+  must change the receiver and use interior mutability for any state changed during
+  reads. The new `read_block` method has a default and needs no changes.
+- **`culvert` updated to 0.2, and `display-types` to 0.4**: the re-exported
+  register and error types are the new culvert's, and `FrlRate` (culvert's re-export of
+  display-types' `HdmiForumFrl`) is display-types 0.4's type. Code that passes a
+  display-types 0.3 `HdmiForumFrl` must move to display-types 0.4.
 - **The `plumbob-async` feature implements plumbob-async's per-lane `ScdcClient`**: the
   eight methods of plumbob's link training states (`read_flt_ready`,
   `read_update_flags`, `clear_update_flags`, `read_ltp_requests`,
