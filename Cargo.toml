@@ -14,7 +14,7 @@ categories = ["hardware-support", "embedded", "no-std", "asynchronous"]
 all-features = true
 
 [features]
-plumbob-async = ["dep:plumbob-async"]
+plumbob-async = ["dep:plumbob-async", "culvert/plumbob"]
 
 [dependencies]
 culvert = { path = "../culvert-frl", default-features = false }
