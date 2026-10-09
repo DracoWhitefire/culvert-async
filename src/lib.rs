@@ -20,6 +20,7 @@ mod client;
 
 pub use client::Scdc;
 pub use culvert::{
-    CedCount, CedCounters, FfeLevels, FrlConfig, FrlRate, LtpReq, ProtocolError, ScdcError,
-    ScramblerStatus, StatusFlags, TmdsConfig, UpdateFlags,
+    CedCount, CedCounters, Config0, FfeLevels, FrlConfig, FrlRate, LtpReq, LtpRequests,
+    ProtocolError, RsCorrectionCount, ScdcError, ScramblerStatus, SourceTestConfig, StatusFlags,
+    TmdsConfig, UpdateFlags,
 };

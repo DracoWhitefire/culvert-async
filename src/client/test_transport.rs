@@ -4,6 +4,7 @@
 //! tests. A single generic instantiation avoids the dead-code coverage regions
 //! that arise from LLVM counting per-monomorphization `?` Err branches.
 
+use core::cell::Cell;
 use hdmi_hal_async::scdc::ScdcTransport;
 
 /// Async in-memory transport that succeeds for the first `fail_after` operations
@@ -14,7 +15,7 @@ use hdmi_hal_async::scdc::ScdcTransport;
 pub struct TestTransport {
     pub regs: [u8; 256],
     fail_after: usize,
-    ops: usize,
+    ops: Cell<usize>,
 }
 
 impl TestTransport {
@@ -22,7 +23,7 @@ impl TestTransport {
         Self {
             regs: [0u8; 256],
             fail_after: usize::MAX,
-            ops: 0,
+            ops: Cell::new(0),
         }
     }
 
@@ -30,7 +31,7 @@ impl TestTransport {
         Self {
             regs: [0u8; 256],
             fail_after: n,
-            ops: 0,
+            ops: Cell::new(0),
         }
     }
 
@@ -46,19 +47,19 @@ impl TestTransport {
 impl ScdcTransport for TestTransport {
     type Error = ();
 
-    async fn read(&mut self, reg: u8) -> Result<u8, ()> {
-        if self.ops >= self.fail_after {
+    async fn read(&self, reg: u8) -> Result<u8, ()> {
+        if self.ops.get() >= self.fail_after {
             return Err(());
         }
-        self.ops += 1;
+        self.ops.set(self.ops.get() + 1);
         Ok(self.regs[reg as usize])
     }
 
     async fn write(&mut self, reg: u8, value: u8) -> Result<(), ()> {
-        if self.ops >= self.fail_after {
+        if self.ops.get() >= self.fail_after {
             return Err(());
         }
-        self.ops += 1;
+        self.ops.set(self.ops.get() + 1);
         self.regs[reg as usize] = value;
         Ok(())
     }

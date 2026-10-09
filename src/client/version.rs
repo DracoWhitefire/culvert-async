@@ -1,15 +1,15 @@
 use hdmi_hal_async::scdc::ScdcTransport;
 
 use crate::ScdcError;
+use culvert::codec;
 
 use super::Scdc;
-use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
     /// Reads the sink's SCDC protocol version from `Sink_Version` (0x01).
     pub async fn read_sink_version(&mut self) -> Result<u8, ScdcError<T::Error>> {
         self.transport
-            .read(address::SINK_VERSION)
+            .read(codec::SINK_VERSION)
             .await
             .map_err(ScdcError::Transport)
     }
@@ -17,7 +17,7 @@ impl<T: ScdcTransport> Scdc<T> {
     /// Writes the source's SCDC protocol version to `Source_Version` (0x02).
     pub async fn write_source_version(&mut self, version: u8) -> Result<(), ScdcError<T::Error>> {
         self.transport
-            .write(address::SOURCE_VERSION, version)
+            .write(codec::SOURCE_VERSION, version)
             .await
             .map_err(ScdcError::Transport)
     }
