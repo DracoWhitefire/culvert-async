@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internal
 
+- **CI builds for a `no_std` target** — new `Build (no_std)` steps build the crate for
+  `thumbv7em-none-eabi`, with and without the `plumbob-async` feature. Nothing checked a
+  target without `std` before, so a dependency that enables `std` (as hdmi-hal did
+  through `display-types`) went unnoticed.
+  The publish workflow runs the same build steps.
 - The client modules, their tests and the example are culvert's with `async`/`.await`;
   culvert-async's own register address module is removed.
 

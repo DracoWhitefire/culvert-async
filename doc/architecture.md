@@ -154,7 +154,8 @@ the example are culvert's with `async`/`.await`, so the two crates stay easy to 
 culvert-async is `#![no_std]`. The async transport trait and all return types require no
 allocator. `Scdc<T>` holds only the transport; `ScdcError<E>` is stack-allocated. The full
 API is available in bare `no_std` environments, consistent with culvert and the rest of
-the stack.
+the stack. CI builds the crate, with and without the `plumbob-async` feature, for
+`thumbv7em-none-eabi`, a target without `std`.
 
 `#![allow(async_fn_in_trait)]` is not needed in culvert-async: the crate implements async
 traits but does not define them. The lint applies to trait definitions, not to implementors.
