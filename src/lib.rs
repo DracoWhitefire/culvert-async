@@ -1,8 +1,9 @@
 //! Async typed access to the HDMI 2.1 SCDC (Status and Control Data Channel) register map.
 //!
-//! `culvert-async` is the async companion to [`culvert`], following the same design split
-//! as `embedded-hal` / `embedded-hal-async`. It mirrors [`culvert::Scdc`] with `async fn`
-//! methods, wrapping an [`hdmi_hal_async::scdc::ScdcTransport`] instead of a sync transport.
+//! `culvert-async` is the async companion to [`culvert`]: [`culvert::Scdc`]'s methods as
+//! `async fn`s over an [`hdmi_hal_async::scdc::ScdcTransport`]. The register map is
+//! culvert's [`culvert::codec`]; this crate only performs the reads and writes, so the sync
+//! and async clients always agree.
 //!
 //! All register types and error types are re-exported from `culvert` so that callers do not
 //! need to depend on both crates.

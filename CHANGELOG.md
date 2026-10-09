@@ -7,11 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **The register map is culvert's corrected one.** Every method now reads and writes the
+  registers `culvert::codec` names and converts with its functions, instead of
+  culvert-async's own copy of culvert's previous, incorrect map (see culvert's changelog,
+  *Fixed*). `write_frl_config` writes `Config_1` (0x31); `StatusFlags` decodes
+  `Status_Flags_0` only; link training requests are read per lane with
+  `read_ltp_requests`; `UpdateFlags` decodes all `Update_0` flags. `FrlConfig`,
+  `FfeLevels`, `StatusFlags`, `UpdateFlags` and `LtpReq` follow culvert's new definitions.
+- **`ScdcTransport::read` takes `&self`** (from `hdmi-hal-async`).
+- **The `plumbob-async` feature implements plumbob-async's per-lane `ScdcClient`**: the
+  eight methods of plumbob's link training states (`read_flt_ready`,
+  `read_update_flags`, `clear_update_flags`, `read_ltp_requests`,
+  `read_source_test_config`, `write_config_0_defaults`, `write_frl_config`, `read_ced`).
+  The conversions are culvert's own: the feature enables culvert's `plumbob` feature.
+
 ### Added
 
+- `write_config_0`, `read_source_test_config`, `read_ltp_requests` and
+  `read_rs_correction`, with the re-exports `Config0`, `SourceTestConfig`, `LtpRequests`
+  and `RsCorrectionCount`.
+- End-to-end tests of plumbob-async's training through `Scdc<T>` (`tests/plumbob_async.rs`).
 - **SLSA Build Level 2 provenance** — release artifacts are attested via
   `actions/attest-build-provenance` and verified with
   `gh attestation verify <file> --repo DracoWhitefire/culvert-async`.
+
+### Internal
+
+- The client modules, their tests and the example are culvert's with `async`/`.await`;
+  culvert-async's own register address module is removed.
 
 ## [0.1.0] - 2026-04-05
 
