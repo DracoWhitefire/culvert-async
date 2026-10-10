@@ -20,14 +20,18 @@ impl<T: ScdcTransport> Scdc<T> {
     /// Clears the specified update flags in `Update_0` (0x10).
     ///
     /// Each flag set to `true` in `flags` is cleared (write-1-to-clear). Flags
-    /// set to `false` are left unchanged. `rr_test` is never cleared: Read Request Test
-    /// is the one update flag the source must not clear, so it is ignored here.
+    /// set to `false` are left unchanged.
+    ///
+    /// Returns [`crate::ProtocolError::RrTestNotClearable`], writing nothing, if
+    /// `flags.rr_test` is set: culvert treats Read Request Test as a flag the source must
+    /// not clear.
     pub async fn clear_update_flags(
         &mut self,
         flags: UpdateFlags,
     ) -> Result<(), ScdcError<T::Error>> {
+        let byte = codec::encode_clear_update_flags(flags).map_err(ScdcError::Protocol)?;
         self.transport
-            .write(codec::UPDATE_0, codec::encode_clear_update_flags(flags))
+            .write(codec::UPDATE_0, byte)
             .await
             .map_err(ScdcError::Transport)
     }
@@ -37,7 +41,7 @@ impl<T: ScdcTransport> Scdc<T> {
 mod tests {
     use super::super::Scdc;
     use super::super::test_transport::TestTransport;
-    use crate::UpdateFlags;
+    use crate::{ProtocolError, ScdcError, UpdateFlags};
 
     fn read(byte: u8) -> UpdateFlags {
         let mut sim = TestTransport::new();
@@ -73,7 +77,7 @@ mod tests {
     #[pollster::test]
     async fn clear_update_flags_w1c() {
         let mut scdc = Scdc::new(TestTransport::new());
-        scdc.clear_update_flags(UpdateFlags::new(true, true, true, true, true, true, true))
+        scdc.clear_update_flags(UpdateFlags::new(true, true, false, true, true, true, true))
             .await
             .unwrap();
         let t = scdc.into_transport();
@@ -82,14 +86,21 @@ mod tests {
     }
 
     #[pollster::test]
-    async fn clear_update_flags_never_clears_rr_test() {
-        let mut scdc = Scdc::new(TestTransport::new());
-        scdc.clear_update_flags(UpdateFlags::new(
-            false, false, true, false, false, false, false,
-        ))
-        .await
-        .unwrap();
-        assert_eq!(scdc.into_transport().get(0x10), 0x00);
+    async fn clear_update_flags_rejects_rr_test_and_writes_nothing() {
+        let mut sim = TestTransport::new();
+        sim.set(0x10, 0xAA); // a sentinel: any write would replace it
+        let mut scdc = Scdc::new(sim);
+        // Even with other flags to clear, nothing is written.
+        let result = scdc
+            .clear_update_flags(UpdateFlags::new(
+                true, false, true, false, false, true, false,
+            ))
+            .await;
+        assert!(matches!(
+            result,
+            Err(ScdcError::Protocol(ProtocolError::RrTestNotClearable))
+        ));
+        assert_eq!(scdc.into_transport().get(0x10), 0xAA);
     }
 
     #[pollster::test]
