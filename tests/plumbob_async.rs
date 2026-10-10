@@ -7,8 +7,11 @@
 //! bits in between.
 #![cfg(feature = "plumbob-async")]
 
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use core::convert::Infallible;
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 
 use culvert_async::Scdc;
 use display_types::cea861::hdmi_forum::HdmiForumFrl;
@@ -48,6 +51,8 @@ struct Sink {
     rounds: Vec<Round>,
     next_round: usize,
     frl_start_after: Option<u32>,
+    /// Raises `FRL_start` together with `FLT_update` when this round is posted.
+    frl_start_with_round: Option<usize>,
     /// Training runs while `Config_1` holds an FRL rate.
     configured: bool,
     update_polls: u32,
@@ -64,6 +69,7 @@ impl Sink {
             rounds: Vec::new(),
             next_round: 0,
             frl_start_after: None,
+            frl_start_with_round: None,
             configured: false,
             update_polls: 0,
             config_1_writes: Vec::new(),
@@ -96,6 +102,9 @@ impl Sink {
                 self.regs[STATUS_FLAGS_1 as usize] = l0 | (l1 << 4);
                 self.regs[STATUS_FLAGS_2 as usize] = l2 | (l3 << 4);
                 self.regs[UPDATE_0 as usize] |= FLT_UPDATE;
+                if self.frl_start_with_round == Some(self.next_round) {
+                    self.regs[UPDATE_0 as usize] |= FRL_START;
+                }
             }
             None if self.frl_start_after.is_some_and(|n| self.update_polls >= n) => {
                 self.regs[UPDATE_0 as usize] |= FRL_START;
@@ -114,8 +123,8 @@ impl Sink {
                     self.next_round += 1;
                     self.update_polls = 0;
                 }
-                if value & set & FRL_START != 0 {
-                    // FRL_start is set once.
+                if value & set & FRL_START != 0 && self.next_round >= self.rounds.len() {
+                    // FRL_start is set once; one raised with a round does not use it up.
                     self.frl_start_after = None;
                 }
                 self.regs[UPDATE_0 as usize] = set & !value;
@@ -131,19 +140,60 @@ impl Sink {
     }
 }
 
+/// A future that is `Pending` once and wakes itself before completing, as a transport
+/// that waits on the bus would be.
+struct YieldOnce(bool);
+
+impl Future for YieldOnce {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+        if self.0 {
+            Poll::Ready(())
+        } else {
+            self.0 = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        }
+    }
+}
+
 /// The sink behind an `ScdcTransport`. `read` takes `&self`, so the sink's state is in a
-/// `RefCell`.
-struct SinkTransport(RefCell<Sink>);
+/// `RefCell`. Every other operation waits once, so training runs over I/O that really
+/// suspends, not only futures that are ready when first polled.
+struct SinkTransport {
+    sink: RefCell<Sink>,
+    operations: Cell<u32>,
+}
+
+impl SinkTransport {
+    fn new(sink: Sink) -> Self {
+        Self {
+            sink: RefCell::new(sink),
+            operations: Cell::new(0),
+        }
+    }
+
+    async fn maybe_wait(&self) {
+        let n = self.operations.get();
+        self.operations.set(n + 1);
+        if n % 2 == 1 {
+            YieldOnce(false).await;
+        }
+    }
+}
 
 impl ScdcTransport for SinkTransport {
     type Error = Infallible;
 
     async fn read(&self, reg: u8) -> Result<u8, Infallible> {
-        Ok(self.0.borrow_mut().read(reg))
+        self.maybe_wait().await;
+        Ok(self.sink.borrow_mut().read(reg))
     }
 
     async fn write(&mut self, reg: u8, value: u8) -> Result<(), Infallible> {
-        self.0.get_mut().write(reg, value);
+        self.maybe_wait().await;
+        self.sink.get_mut().write(reg, value);
         Ok(())
     }
 }
@@ -206,10 +256,15 @@ async fn train(
     rates: &[HdmiForumFrl],
     config: &TrainingConfig,
 ) -> (TrainingOutcome, Sink, Phy) {
-    let mut trainer = FrlTrainer::new(Scdc::new(SinkTransport(RefCell::new(sink))), Phy::default());
+    let mut trainer = FrlTrainer::new(Scdc::new(SinkTransport::new(sink)), Phy::default());
     let outcome = trainer.train(rates, config).await.unwrap().outcome;
     let (scdc, phy) = trainer.into_parts();
-    (outcome, scdc.into_transport().0.into_inner(), phy)
+    let transport = scdc.into_transport();
+    assert!(
+        transport.operations.get() > 1,
+        "the transport waited during training"
+    );
+    (outcome, transport.sink.into_inner(), phy)
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -342,7 +397,7 @@ async fn train_with_warnings(
     sink: Sink,
     rates: &[HdmiForumFrl],
 ) -> (TrainingOutcome, Vec<TrainingWarning>) {
-    let mut trainer = FrlTrainer::new(Scdc::new(SinkTransport(RefCell::new(sink))), Phy::default());
+    let mut trainer = FrlTrainer::new(Scdc::new(SinkTransport::new(sink)), Phy::default());
     let trained = trainer.train(rates, &ffe_3()).await.unwrap();
     let warnings = trained.iter_warnings().copied().collect();
     (trained.outcome, warnings)
@@ -399,4 +454,89 @@ async fn a_three_lane_link_ignores_an_undefined_lane_3_nibble() {
             in_use: false,
         }]
     );
+}
+
+#[pollster::test]
+async fn frl_start_together_with_flt_update_retrains() {
+    // LTS:P sees both flags at once: the retrain wins, and the second pass starts.
+    let mut sink = Sink::new();
+    sink.flt_ready_after = Some(0);
+    sink.rounds = vec![
+        round(0, [0x5; 4]),
+        round(0, [0x0; 4]),
+        round(0, [0x6; 4]),
+        round(0, [0x0; 4]),
+    ];
+    sink.frl_start_with_round = Some(2);
+    sink.frl_start_after = Some(0);
+    let (outcome, sink, phy) = train(sink, &[R12], &ffe_3()).await;
+    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert_eq!(
+        sink.regs[UPDATE_0 as usize], 0,
+        "every flag plumbob saw is cleared"
+    );
+    let lfsr1 = Some(LtpPattern::Lfsr1);
+    assert!(phy.patterns.contains(&LanePatterns {
+        lane0: lfsr1,
+        lane1: lfsr1,
+        lane2: lfsr1,
+        lane3: lfsr1,
+    }));
+}
+
+#[pollster::test]
+async fn a_retrain_resumes_from_no_pattern_at_register_level() {
+    let mut sink = Sink::new();
+    sink.flt_ready_after = Some(0);
+    sink.rounds = vec![
+        round(0, [0x5; 4]),
+        round(0, [0x0; 4]),
+        // The retrain: only lane 0 asks for a pattern (LFSR 1).
+        round(1, [0x6, 0x0, 0x0, 0x0]),
+        round(0, [0x0; 4]),
+    ];
+    sink.frl_start_after = Some(0);
+    let (outcome, sink, phy) = train(sink, &[R12], &ffe_3()).await;
+    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert_eq!(sink.regs[UPDATE_0 as usize], 0);
+    assert!(phy.patterns.contains(&LanePatterns {
+        lane0: Some(LtpPattern::Lfsr1),
+        lane1: None,
+        lane2: None,
+        lane3: None,
+    }));
+}
+
+#[pollster::test]
+async fn update_0_flags_plumbob_does_not_handle_are_left_set() {
+    let mut sink = Sink::new();
+    // Status_Update, CED_Update, RR_Test and RSED_Update.
+    sink.regs[UPDATE_0 as usize] = 0x01 | 0x02 | 0x04 | 0x40;
+    sink.flt_ready_after = Some(0);
+    sink.rounds = vec![round(0, [0x5; 4]), round(0, [0x0; 4])];
+    sink.frl_start_after = Some(0);
+    let (outcome, sink, _) = train(sink, &[R12], &ffe_3()).await;
+    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert_eq!(sink.regs[UPDATE_0 as usize], 0x47);
+}
+
+#[pollster::test]
+async fn the_ffe_maximum_is_limited_per_rate_through_culvert() {
+    // FfeLevels::MAX is 7; up to 12 Gbps a sink allows 3.
+    for (rate, config_1) in [(R12, 0x36u8), (HdmiForumFrl::Rate3Gbps3Lanes, 0x31)] {
+        let mut sink = Sink::new();
+        sink.flt_ready_after = Some(0);
+        sink.rounds = vec![round(0, [0x0; 4])];
+        sink.frl_start_after = Some(0);
+        let mut config = TrainingConfig::default();
+        config.ffe_levels = FfeLevels::MAX;
+        let (outcome, sink, _) = train(sink, &[rate], &config).await;
+        assert_eq!(
+            outcome,
+            TrainingOutcome::Success {
+                achieved_rate: rate
+            }
+        );
+        assert_eq!(sink.config_1_writes, [config_1]);
+    }
 }

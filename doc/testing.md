@@ -38,8 +38,12 @@ When compiled with `--features plumbob-async`, two more sets of tests run, both 
 - **End-to-end tests** (`tests/plumbob_async.rs`) run plumbob-async's `FrlTrainer`
   through `Scdc<T>` against a sink simulated at the register level: a full training run,
   a rate drop, a timeout and exhausted rates ending in TMDS, `FLT_no_timeout`, an
-  undefined request ignored and returned as a `TrainingWarning`, and a 3-lane link whose
-  unused lane 3 reports an undefined value.
+  undefined request ignored and returned as a `TrainingWarning`, a 3-lane link whose
+  unused lane 3 reports an undefined value, `FRL_start` and `FLT_update` set together,
+  a retrain resuming from no pattern, the `Update_0` flags plumbob does not handle left
+  set, and the FFE maximum limited per rate. The simulated transport waits (returns
+  `Pending` once) on every other operation, so training runs over I/O that really
+  suspends.
 
 ### Example (`examples/scdc/main.rs`)
 
