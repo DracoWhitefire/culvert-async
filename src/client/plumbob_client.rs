@@ -176,12 +176,12 @@ mod tests {
     }
 
     #[pollster::test]
-    async fn read_ltp_requests_rejects_undefined_values() {
-        let result = ScdcClient::read_ltp_requests(&mut scdc_with(&[(0x42, 0x90)])).await;
-        assert!(matches!(
-            result,
-            Err(ScdcError::Protocol(ProtocolError::UnknownLtpReq(0x9)))
-        ));
+    async fn read_ltp_requests_passes_undefined_values_on() {
+        let requests = ScdcClient::read_ltp_requests(&mut scdc_with(&[(0x42, 0x90)]))
+            .await
+            .unwrap();
+        assert_eq!(requests.lane3, LtpReq::Reserved(0x9));
+        assert_eq!(requests.lane2, LtpReq::None);
     }
 
     // --- read_source_test_config: Source_Test_Configuration (0x35) bit 5

@@ -33,12 +33,13 @@ When compiled with `--features plumbob-async`, two more sets of tests run, both 
 
 - **Unit tests** (`src/client/plumbob_client.rs`) call each method through the
   `plumbob_async::ScdcClient` trait and assert on register bits: every request value (and
-  0x9 rejected as `UnknownLtpReq`), each flag clear writing only its own bit, `Config_1`
+  0x9 passed on as `LtpReq::Reserved`), each flag clear writing only its own bit, `Config_1`
   encoding, culvert's FFE-levels check, CED validity bits, and transport errors.
 - **End-to-end tests** (`tests/plumbob_async.rs`) run plumbob-async's `FrlTrainer`
   through `Scdc<T>` against a sink simulated at the register level: a full training run,
-  a rate drop, a timeout and exhausted rates ending in TMDS, `FLT_no_timeout`, and an
-  undefined request.
+  a rate drop, a timeout and exhausted rates ending in TMDS, `FLT_no_timeout`, an
+  undefined request ignored and returned as a `TrainingWarning`, and a 3-lane link whose
+  unused lane 3 reports an undefined value.
 
 ### Example (`examples/scdc/main.rs`)
 

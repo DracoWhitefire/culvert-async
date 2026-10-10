@@ -15,7 +15,9 @@ use display_types::cea861::hdmi_forum::HdmiForumFrl;
 use hdmi_hal_async::phy::HdmiPhy;
 use hdmi_hal_async::scdc::ScdcTransport;
 use hdmi_hal_async::{EqParams, FrlOutput, LanePatterns, LtpPattern};
-use plumbob_async::{FallbackReason, FfeLevels, FrlTrainer, TrainingConfig, TrainingOutcome};
+use plumbob_async::{
+    FallbackReason, FfeLevels, FrlTrainer, TrainingConfig, TrainingOutcome, TrainingWarning,
+};
 
 const UPDATE_0: u8 = 0x10;
 const CONFIG_0: u8 = 0x30;
@@ -335,22 +337,66 @@ async fn flt_no_timeout_from_source_test_configuration() {
     assert_eq!(sink.regs[UPDATE_0 as usize] & SOURCE_TEST_UPDATE, 0);
 }
 
+/// Trains `sink` over `rates`, returning the warnings with the outcome.
+async fn train_with_warnings(
+    sink: Sink,
+    rates: &[HdmiForumFrl],
+) -> (TrainingOutcome, Vec<TrainingWarning>) {
+    let mut trainer = FrlTrainer::new(Scdc::new(SinkTransport(RefCell::new(sink))), Phy::default());
+    let trained = trainer.train(rates, &ffe_3()).await.unwrap();
+    let warnings = trained.iter_warnings().copied().collect();
+    (trained.outcome, warnings)
+}
+
 #[pollster::test]
-async fn an_undefined_request_is_a_protocol_error() {
+async fn an_undefined_request_is_ignored_and_reported() {
     let mut sink = Sink::new();
     sink.flt_ready_after = Some(0);
-    sink.rounds = vec![round(0, [0x9, 0x0, 0x0, 0x0])];
+    sink.rounds = vec![round(0, [0x5, 0x9, 0x5, 0x5]), round(0, [0x0; 4])];
+    sink.frl_start_after = Some(0);
 
-    let mut trainer = FrlTrainer::new(Scdc::new(SinkTransport(RefCell::new(sink))), Phy::default());
-    let result = trainer.train(&[R12], &ffe_3()).await;
+    let (outcome, warnings) = train_with_warnings(sink, &[R12]).await;
 
-    assert!(matches!(
-        result,
-        Err(plumbob_async::TrainingError::Scdc {
-            error: culvert_async::ScdcError::Protocol(culvert_async::ProtocolError::UnknownLtpReq(
-                0x9
-            )),
-            exit: plumbob_async::TmdsExit::Exited,
-        })
-    ));
+    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert_eq!(
+        warnings,
+        [TrainingWarning::UndefinedLtpRequest {
+            lane: 1,
+            value: 0x9,
+            count: 1,
+            in_use: true,
+        }]
+    );
+}
+
+#[pollster::test]
+async fn a_three_lane_link_ignores_an_undefined_lane_3_nibble() {
+    // Lane 3 is not in use at a 3-lane rate; an undefined value there used to end
+    // training with a protocol error.
+    let rate = HdmiForumFrl::Rate6Gbps3Lanes;
+    let mut sink = Sink::new();
+    sink.flt_ready_after = Some(0);
+    sink.rounds = vec![
+        round(0, [0x5, 0x5, 0x5, 0x9]),
+        round(0, [0x0, 0x0, 0x0, 0x9]),
+    ];
+    sink.frl_start_after = Some(0);
+
+    let (outcome, warnings) = train_with_warnings(sink, &[rate]).await;
+
+    assert_eq!(
+        outcome,
+        TrainingOutcome::Success {
+            achieved_rate: rate
+        }
+    );
+    assert_eq!(
+        warnings,
+        [TrainingWarning::UndefinedLtpRequest {
+            lane: 3,
+            value: 0x9,
+            count: 2,
+            in_use: false,
+        }]
+    );
 }
