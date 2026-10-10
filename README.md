@@ -114,14 +114,14 @@ flowchart LR
     culvert["culvert"]
     culvert_async["culvert-async"]
     plumbob_async["plumbob-async"]
-    integration["integration layer"]
+    integration["integration layer (planned)"]
 
     dt --> culvert
     hal --> culvert
     hal --> culvert_async
     culvert --> culvert_async
     culvert_async -->|"implements ScdcClient"| plumbob_async
-    plumbob_async -->|"implements LinkTrainer"| integration
+    plumbob_async -.->|"will implement LinkTrainer"| integration
 ```
 
 `culvert-async` does not depend on `plumbob-async`. The relationship runs the other way:
