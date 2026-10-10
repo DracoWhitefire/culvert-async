@@ -35,8 +35,9 @@ culvert-async covers:
   - error counters: `read_ced`, `read_rs_correction`,
 - re-exports of culvert's public types (`ScdcError`, `ProtocolError`, `TmdsConfig`,
   `ScramblerStatus`, `Config0`, `FrlConfig`, `FfeLevels`, `FrlRate`, `SourceTestConfig`,
-  `StatusFlags`, `LtpReq`, `LtpRequests`, `UpdateFlags`, `CedCount`, `CedCounters`,
-  `RsCorrectionCount`),
+  `StatusFlags`, `LtpReq`, `LtpRequests`, `UpdateFlags`, `ClearableUpdateFlags`,
+  `CedCount`, `CedCounters`, `RsCorrectionCount`), and of hdmi-hal-async's
+  `ScdcTransport`, the bound on `Scdc<T>`,
 - the `plumbob_async::ScdcClient` implementation for `Scdc<T>`, behind the `plumbob-async`
   cargo feature.
 

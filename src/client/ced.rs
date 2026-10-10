@@ -12,6 +12,10 @@ impl<T: ScdcTransport> Scdc<T> {
     ///
     /// Each lane's counter is decoded from a low/high byte pair. The high byte's
     /// bit 7 is a validity flag; if it is not set the lane's counter is `None`.
+    ///
+    /// Each byte is a separate read, so a counter the sink updates between its low and
+    /// high byte can be torn, and the CED checksum (0x56) is not verified. Treat the
+    /// counts as diagnostics.
     pub async fn read_ced(&mut self) -> Result<CedCounters, ScdcError<T::Error>> {
         let mut bytes = [0; 8];
         for (byte, reg) in bytes.iter_mut().zip(codec::CED_REGISTERS) {
