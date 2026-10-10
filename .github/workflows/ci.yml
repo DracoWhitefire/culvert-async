@@ -85,6 +85,9 @@ jobs:
         run: |
           cargo llvm-cov clean --workspace
           cargo llvm-cov --no-report --locked
+          # The `plumbob-async` adapter is only compiled with its feature; measure it too, so
+          # the baseline covers it. The two runs are merged into one report.
+          cargo llvm-cov --no-report --locked --features plumbob-async
           LINES=$(cargo llvm-cov report --json --summary-only \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d['data'][0]['totals']['lines']['percent'], 2))")
           echo "COVERAGE=${LINES}" >> "$GITHUB_ENV"

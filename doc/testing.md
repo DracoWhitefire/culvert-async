@@ -59,7 +59,8 @@ cargo run --example scdc
 
 ## Coverage
 
-CI measures line coverage with `cargo-llvm-cov` over the default features. The baseline
+CI measures line coverage with `cargo-llvm-cov` over the default features and the
+`plumbob-async` feature, merged into one report, so the adapter is covered too. The baseline
 is stored in `.coverage-baseline` (100%); CI fails if coverage drops more than 0.1% below
 it.
 
