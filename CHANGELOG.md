@@ -16,9 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Status_Flags_0` only; link training requests are read per lane with
   `read_ltp_requests`, where an undefined value is `LtpReq::Reserved` rather than an
   error (`ProtocolError::UnknownLtpReq` is removed); `UpdateFlags` decodes all `Update_0`
-  flags, and `clear_update_flags` refuses `rr_test` with
-  `ProtocolError::RrTestNotClearable`, writing nothing (a provisional rule; see culvert's
-  `doc/architecture.md`). `FrlConfig`, `FfeLevels`, `StatusFlags`, `UpdateFlags` and `LtpReq` follow
+  flags, and `clear_update_flags` takes culvert's new `ClearableUpdateFlags` — every
+  flag but `rr_test`, which the source does not clear (a provisional rule; see culvert's
+  `doc/architecture.md`) — with `UpdateFlags::clearable()` for a read-then-clear. `FrlConfig`, `FfeLevels`, `StatusFlags`, `UpdateFlags` and `LtpReq` follow
   culvert's new definitions.
 - **`hdmi-hal-async` updated to 0.2**: `Scdc<T>`'s transport implements hdmi-hal-async
   0.2's `ScdcTransport`, whose `read` takes `&self` instead of `&mut self`. Transports

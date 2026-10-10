@@ -26,7 +26,7 @@ culvert-async = "0.1"
 Wrap your async transport in `Scdc` and await typed methods:
 
 ```rust
-use culvert_async::{FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig, UpdateFlags};
+use culvert_async::{ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
 
 let mut scdc = Scdc::new(transport);
 
@@ -53,7 +53,7 @@ if flags.flt_ready {
 let updates = scdc.read_update_flags().await?;
 if updates.flt_update {
     let requests = scdc.read_ltp_requests().await?;
-    scdc.clear_update_flags(UpdateFlags::new(false, false, false, false, false, true, false)).await?;
+    scdc.clear_update_flags(ClearableUpdateFlags::new(false, false, false, false, true, false)).await?;
     if requests.all_trained() {
         // training passed; wait for FRL_Start in the update flags
     }
