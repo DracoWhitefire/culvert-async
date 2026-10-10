@@ -144,8 +144,6 @@ enabling the `plumbob-async` feature makes `Scdc<T>` implement
 - [`doc/architecture.md`](doc/architecture.md) — role, scope, the client, the `plumbob-async`
   feature, and design principles
 - [`doc/testing.md`](doc/testing.md) — testing strategy, transport harness, and CI expectations
-- [`doc/architecture.md`](doc/architecture.md) — role, scope, module structure, design
-  principles, and implementation plan
 - [`doc/roadmap.md`](doc/roadmap.md) — deferred register groups and planned API surfaces
 
 ## Verifying releases
