@@ -10,7 +10,7 @@
 //!
 //! # Features
 //!
-//! - **`plumbob-async`** — implements [`plumbob_async::ScdcClient`] for [`Scdc<T>`], connecting
+//! - **`plumbob-async`** — implements `plumbob_async::ScdcClient` for [`Scdc<T>`], connecting
 //!   culvert-async to the async FRL link training state machine.
 
 #![no_std]
@@ -25,3 +25,5 @@ pub use culvert::{
     ProtocolError, RsCorrectionCount, ScdcError, ScramblerStatus, SourceTestConfig, StatusFlags,
     TmdsConfig, UpdateFlags,
 };
+/// The async transport `Scdc<T>` is generic over, re-exported from `hdmi-hal-async`.
+pub use hdmi_hal_async::scdc::ScdcTransport;

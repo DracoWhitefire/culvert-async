@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ScdcTransport` re-exported at the crate root, from `hdmi-hal-async`.
 - `write_config_0`, `read_source_test_config`, `read_ltp_requests` and
   `read_rs_correction`, with the re-exports `Config0`, `SourceTestConfig`, `LtpRequests`
   and `RsCorrectionCount`.
@@ -46,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internal
 
+- The crate documentation no longer links to `plumbob_async::ScdcClient`, which only
+  resolves with the `plumbob-async` feature, so the docs build without it.
 - **CI builds for a `no_std` target** — new `Build (no_std)` steps build the crate for
   `thumbv7em-none-eabi`, with and without the `plumbob-async` feature. Nothing checked a
   target without `std` before, so a dependency that enables `std` (as hdmi-hal did
