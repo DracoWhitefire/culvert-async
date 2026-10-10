@@ -346,8 +346,11 @@ async fn an_undefined_request_is_a_protocol_error() {
 
     assert!(matches!(
         result,
-        Err(plumbob_async::TrainingError::Scdc(
-            culvert_async::ScdcError::Protocol(culvert_async::ProtocolError::UnknownLtpReq(0x9))
-        ))
+        Err(plumbob_async::TrainingError::Scdc {
+            error: culvert_async::ScdcError::Protocol(culvert_async::ProtocolError::UnknownLtpReq(
+                0x9
+            )),
+            exit: plumbob_async::TmdsExit::Exited,
+        })
     ));
 }
