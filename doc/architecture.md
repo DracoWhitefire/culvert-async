@@ -162,6 +162,19 @@ traits but does not define them. The lint applies to trait definitions, not to i
 
 ---
 
+## `Send` futures
+
+`Scdc<T>`'s futures are `Send` when the transport's are and the transport is `Sync`:
+`ScdcTransport::read` takes `&self`, so a future that reads holds `&T`. A transport with a
+`Cell` or `RefCell` inside is therefore fine on a single-threaded executor and cannot be
+spawned on a multi-threaded one. As with `hdmi-hal-async` and `plumbob-async`, code
+generic over the transport cannot prove its futures `Send` at all. The stack design
+document ("Sync and Async Companions", "`Send` futures for multi-threaded executors")
+records how this would be lifted — including why it would take a second client type next
+to `Scdc<T>` — and why it is deferred.
+
+---
+
 ## Design Principles
 
 The principles are culvert's:
