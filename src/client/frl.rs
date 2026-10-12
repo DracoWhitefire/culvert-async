@@ -85,10 +85,10 @@ mod tests {
     #[pollster::test]
     async fn frl_config_rate_field() {
         let mut scdc = Scdc::new(TestTransport::new());
-        scdc.write_frl_config(FrlConfig {
-            frl_rate: HdmiForumFrl::Rate12Gbps4Lanes, // discriminant 6
-            ffe_levels: FfeLevels::default(),
-        })
+        scdc.write_frl_config(FrlConfig::new(
+            HdmiForumFrl::Rate12Gbps4Lanes, // discriminant 6
+            FfeLevels::default(),
+        ))
         .await
         .unwrap();
         let t = scdc.into_transport();
@@ -99,10 +99,10 @@ mod tests {
     #[pollster::test]
     async fn frl_config_ffe_levels_field() {
         let mut scdc = Scdc::new(TestTransport::new());
-        scdc.write_frl_config(FrlConfig {
-            frl_rate: HdmiForumFrl::Rate12Gbps4Lanes,
-            ffe_levels: FfeLevels::new(3).unwrap(), // → bits[7:4]
-        })
+        scdc.write_frl_config(FrlConfig::new(
+            HdmiForumFrl::Rate12Gbps4Lanes,
+            FfeLevels::new(3).unwrap(), // → bits[7:4]
+        ))
         .await
         .unwrap();
         assert_eq!(scdc.into_transport().get(0x31), 0x36);
@@ -133,10 +133,10 @@ mod tests {
     async fn frl_config_rejects_ffe_levels_above_rate_maximum() {
         let mut scdc = Scdc::new(TestTransport::new());
         let result = scdc
-            .write_frl_config(FrlConfig {
-                frl_rate: HdmiForumFrl::Rate12Gbps4Lanes,
-                ffe_levels: FfeLevels::new(4).unwrap(),
-            })
+            .write_frl_config(FrlConfig::new(
+                HdmiForumFrl::Rate12Gbps4Lanes,
+                FfeLevels::new(4).unwrap(),
+            ))
             .await;
         assert!(matches!(
             result,
@@ -208,7 +208,7 @@ mod tests {
             (0x1, LtpReq::AllOnes),
             (0x2, LtpReq::AllZeros),
             (0x3, LtpReq::NyquistClock),
-            (0x4, LtpReq::RxDdeCompliance),
+            (0x4, LtpReq::DdeCompliance),
             (0x5, LtpReq::Lfsr0),
             (0x6, LtpReq::Lfsr1),
             (0x7, LtpReq::Lfsr2),
@@ -310,10 +310,10 @@ mod tests {
     async fn transport_error_propagates() {
         assert!(
             Scdc::new(TestTransport::failing_after(0))
-                .write_frl_config(FrlConfig {
-                    frl_rate: HdmiForumFrl::NotSupported,
-                    ffe_levels: FfeLevels::default(),
-                })
+                .write_frl_config(FrlConfig::new(
+                    HdmiForumFrl::NotSupported,
+                    FfeLevels::default(),
+                ))
                 .await
                 .is_err()
         );

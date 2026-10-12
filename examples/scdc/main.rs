@@ -134,10 +134,10 @@ async fn run() {
     println!("Wrote TMDS_Config: scrambling_enable=true, high_tmds_clock_ratio=true");
 
     // Request 6 Gbps 3-lane FRL with 2 FFE levels.
-    scdc.write_frl_config(FrlConfig {
-        frl_rate: FrlRate::Rate6Gbps3Lanes,
-        ffe_levels: FfeLevels::new(2).unwrap(),
-    })
+    scdc.write_frl_config(FrlConfig::new(
+        FrlRate::Rate6Gbps3Lanes,
+        FfeLevels::new(2).unwrap(),
+    ))
     .await
     .unwrap();
     println!("Wrote Config_1: frl_rate=6G/3L, ffe_levels=2");

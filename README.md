@@ -43,10 +43,10 @@ scdc.write_tmds_config(TmdsConfig {
 // Wait for the sink to be ready, then request an FRL rate
 let flags = scdc.read_status_flags().await?;
 if flags.flt_ready {
-    scdc.write_frl_config(FrlConfig {
-        frl_rate: FrlRate::Rate12Gbps4Lanes,
-        ffe_levels: FfeLevels::new(3).unwrap(),
-    }).await?;
+    scdc.write_frl_config(FrlConfig::new(
+        FrlRate::Rate12Gbps4Lanes,
+        FfeLevels::new(3).unwrap(),
+    )).await?;
 }
 
 // On FLT_Update, read the pattern each lane requests, then acknowledge the flag
