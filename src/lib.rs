@@ -1,15 +1,16 @@
 //! Async typed access to the HDMI 2.1 SCDC (Status and Control Data Channel) register map.
 //!
-//! `culvert-async` is the async companion to [`culvert`], following the same design split
-//! as `embedded-hal` / `embedded-hal-async`. It mirrors [`culvert::Scdc`] with `async fn`
-//! methods, wrapping an [`hdmi_hal_async::scdc::ScdcTransport`] instead of a sync transport.
+//! `culvert-async` is the async companion to [`culvert`]: [`culvert::Scdc`]'s methods as
+//! `async fn`s over an [`hdmi_hal_async::scdc::ScdcTransport`]. The register map is
+//! culvert's [`culvert::codec`]; this crate only performs the reads and writes, so the sync
+//! and async clients always agree.
 //!
 //! All register types and error types are re-exported from `culvert` so that callers do not
 //! need to depend on both crates.
 //!
 //! # Features
 //!
-//! - **`plumbob-async`** — implements [`plumbob_async::ScdcClient`] for [`Scdc<T>`], connecting
+//! - **`plumbob-async`** — implements `plumbob_async::ScdcClient` for [`Scdc<T>`], connecting
 //!   culvert-async to the async FRL link training state machine.
 
 #![no_std]
@@ -20,6 +21,9 @@ mod client;
 
 pub use client::Scdc;
 pub use culvert::{
-    CedCount, CedCounters, FfeLevels, FrlConfig, FrlRate, LtpReq, ProtocolError, ScdcError,
-    ScramblerStatus, StatusFlags, TmdsConfig, UpdateFlags,
+    CedCount, CedCounters, ClearableUpdateFlags, Config0, FfeLevels, FrlConfig, FrlRate, LtpReq,
+    LtpRequests, ProtocolError, RsCorrectionCount, ScdcError, ScramblerStatus, SourceTestConfig,
+    StatusFlags, TmdsConfig, UpdateFlags,
 };
+/// The async transport `Scdc<T>` is generic over, re-exported from `hdmi-hal-async`.
+pub use hdmi_hal_async::scdc::ScdcTransport;

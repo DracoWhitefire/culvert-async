@@ -10,12 +10,10 @@ checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
 
 [[package]]
 name = "culvert"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2367cf98b0b5dce43d62dc45b83d35ef4f3a70437a279598b94aa27c9f262c25"
+version = "0.1.2"
 dependencies = [
- "display-types",
- "hdmi-hal 0.2.0",
+ "display-types 0.4.2",
+ "hdmi-hal 0.4.1",
 ]
 
 [[package]]
@@ -23,8 +21,8 @@ name = "culvert-async"
 version = "0.1.0"
 dependencies = [
  "culvert",
- "display-types",
- "hdmi-hal-async",
+ "display-types 0.4.2",
+ "hdmi-hal-async 0.2.0",
  "plumbob-async",
  "pollster",
 ]
@@ -39,12 +37,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "hdmi-hal"
-version = "0.2.0"
+name = "display-types"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "833c9e4d59a4e1a01054ce35b203030c539b934dcc972bf09592066059572ba1"
+checksum = "d55798f52f556c3d0a8345ac33d44420bcadea3a2b93154248458f384fdddd78"
 dependencies = [
- "display-types",
+ "bitflags",
 ]
 
 [[package]]
@@ -53,7 +51,14 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d91ae818f9d040b67827ae8e83fc8f27c5de1ef93aecd9394f7fdff368c40feb"
 dependencies = [
- "display-types",
+ "display-types 0.3.1",
+]
+
+[[package]]
+name = "hdmi-hal"
+version = "0.4.1"
+dependencies = [
+ "display-types 0.4.2",
 ]
 
 [[package]]
@@ -62,8 +67,16 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a41c1349bd5cb27b5a12956a5153a03e9c068573505b72c60ee1b6abb6c6dc75"
 dependencies = [
- "display-types",
+ "display-types 0.3.1",
  "hdmi-hal 0.3.0",
+]
+
+[[package]]
+name = "hdmi-hal-async"
+version = "0.2.0"
+dependencies = [
+ "display-types 0.4.2",
+ "hdmi-hal 0.4.1",
 ]
 
 [[package]]
@@ -72,7 +85,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50b93b044d41b6df02bc7cb4aff38234b94f7e18621217bad863417bef843d64"
 dependencies = [
- "display-types",
+ "display-types 0.3.1",
  "hdmi-hal 0.3.0",
 ]
 
@@ -82,8 +95,8 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03c54f7fdf2d68ae36c6f7d49876bc849cc439fdbe575a776562f19adba7e16b"
 dependencies = [
- "display-types",
- "hdmi-hal-async",
+ "display-types 0.3.1",
+ "hdmi-hal-async 0.1.0",
  "plumbob",
 ]
 

@@ -9,10 +9,12 @@
 
 Async typed access to the HDMI 2.1 SCDC register map.
 
-`culvert-async` is the async companion to [`culvert`], following the same design split as
-`embedded-hal` / `embedded-hal-async`. It mirrors [`culvert::Scdc`] with `async fn` methods,
-wrapping an [`hdmi_hal_async::scdc::ScdcTransport`] instead of a sync transport. All register
-types and error types are re-exported from `culvert` so callers do not need both crates.
+`culvert-async` is the async companion to [`culvert`]: culvert's `Scdc` client with
+`async fn` methods over an [`hdmi_hal_async::scdc::ScdcTransport`]. The register map is
+culvert's — every address, bit and protocol check comes from `culvert::codec`, and
+culvert-async only performs the reads and writes — so the sync and async clients always
+agree. All register types and error types are re-exported from `culvert` so callers do not
+need both crates.
 
 ## Usage
 
@@ -24,7 +26,7 @@ culvert-async = "0.1"
 Wrap your async transport in `Scdc` and await typed methods:
 
 ```rust
-use culvert_async::{Scdc, TmdsConfig, FrlConfig, FrlRate, FfeLevels};
+use culvert_async::{ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
 
 let mut scdc = Scdc::new(transport);
 
@@ -38,17 +40,23 @@ scdc.write_tmds_config(TmdsConfig {
     high_tmds_clock_ratio: true,
 }).await?;
 
-// Request an FRL rate
-scdc.write_frl_config(FrlConfig {
-    frl_rate: FrlRate::Rate12Gbps4Lanes,
-    ffe_levels: FfeLevels::Ffe3,
-    dsc_frl_max: false,
-}).await?;
-
-// Poll for training readiness
+// Wait for the sink to be ready, then request an FRL rate
 let flags = scdc.read_status_flags().await?;
 if flags.flt_ready {
-    // sink is ready for the LTP loop
+    scdc.write_frl_config(FrlConfig::new(
+        FrlRate::Rate12Gbps4Lanes,
+        FfeLevels::new(3).unwrap(),
+    )).await?;
+}
+
+// On FLT_Update, read the pattern each lane requests, then acknowledge the flag
+let updates = scdc.read_update_flags().await?;
+if updates.flt_update {
+    let requests = scdc.read_ltp_requests().await?;
+    scdc.clear_update_flags(ClearableUpdateFlags::new(false, false, false, false, true, false)).await?;
+    if requests.all_trained() {
+        // training passed; wait for FRL_Start in the update flags
+    }
 }
 
 // Read per-lane character error counts
@@ -71,14 +79,20 @@ plumbob-async  = "0.1"
 
 ## Register coverage
 
-| Register group            | Addresses | Methods                                      |
-|---------------------------|-----------|----------------------------------------------|
-| Version                   | 0x01–0x02 | `read_sink_version`, `write_source_version`  |
-| Update flags              | 0x10–0x11 | `read_update_flags`, `clear_update_flags`    |
-| TMDS / scrambling         | 0x20–0x21 | `write_tmds_config`, `read_scrambler_status` |
-| FRL config                | 0x30      | `write_frl_config`                           |
-| FRL status                | 0x40–0x41 | `read_status_flags`                          |
-| Character Error Detection | 0x50–0x57 | `read_ced`                                   |
+| Register group            | Addresses   | Methods |
+|---------------------------|-------------|---------|
+| Version                   | 0x01–0x02   | `read_sink_version`, `write_source_version` |
+| Update flags              | 0x10        | `read_update_flags`, `clear_update_flags` |
+| TMDS / scrambling         | 0x20–0x21   | `write_tmds_config`, `read_scrambler_status` |
+| FRL config                | 0x30–0x31   | `write_config_0`, `write_frl_config` |
+| Source test configuration | 0x35        | `read_source_test_config` |
+| Status flags              | 0x40        | `read_status_flags` |
+| LTP requests              | 0x41–0x42   | `read_ltp_requests` |
+| Character Error Detection | 0x50–0x55, 0x57–0x58 | `read_ced` |
+| RS correction count       | 0x59–0x5A   | `read_rs_correction` |
+
+The register map is culvert's (`culvert::codec`); its sources are described in culvert's
+architecture document, and registers not yet covered in culvert's roadmap.
 
 ## Features
 
@@ -100,14 +114,14 @@ flowchart LR
     culvert["culvert"]
     culvert_async["culvert-async"]
     plumbob_async["plumbob-async"]
-    integration["integration layer"]
+    integration["integration layer (planned)"]
 
     dt --> culvert
     hal --> culvert
     hal --> culvert_async
     culvert --> culvert_async
     culvert_async -->|"implements ScdcClient"| plumbob_async
-    plumbob_async -->|"implements LinkTrainer"| integration
+    plumbob_async -.->|"will implement LinkTrainer"| integration
 ```
 
 `culvert-async` does not depend on `plumbob-async`. The relationship runs the other way:
@@ -127,9 +141,9 @@ enabling the `plumbob-async` feature makes `Scdc<T>` implement
 ## Documentation
 
 - [`doc/setup.md`](doc/setup.md) — build, test, coverage, and example commands
+- [`doc/architecture.md`](doc/architecture.md) — role, scope, the client, the `plumbob-async`
+  feature, and design principles
 - [`doc/testing.md`](doc/testing.md) — testing strategy, transport harness, and CI expectations
-- [`doc/architecture.md`](doc/architecture.md) — role, scope, module structure, design
-  principles, and implementation plan
 - [`doc/roadmap.md`](doc/roadmap.md) — deferred register groups and planned API surfaces
 
 ## Verifying releases
