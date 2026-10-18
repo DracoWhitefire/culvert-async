@@ -1,18 +1,22 @@
 //! Async typed access to the HDMI 2.1 SCDC (Status and Control Data Channel) register map.
 //!
-//! `culvert-async` is the async companion to [`culvert`], following the same design split
-//! as `embedded-hal` / `embedded-hal-async`. It mirrors [`culvert::Scdc`] with `async fn`
-//! methods, wrapping an [`hdmi_hal_async::scdc::ScdcTransport`] instead of a sync transport.
+//! `culvert-async` is the async companion to [`culvert`]: [`culvert::Scdc`]'s methods as
+//! `async fn`s over an [`hdmi_hal_async::scdc::ScdcTransport`]. The register map is
+//! culvert's [`culvert::codec`]; this crate only performs the reads and writes, so the sync
+//! and async clients always agree.
 //!
 //! All register types and error types are re-exported from `culvert` so that callers do not
-//! need to depend on both crates.
+//! need to depend on both crates, and the transport trait and its `Send` twin from
+//! `hdmi-hal-async`. culvert's I/O-free encoders and decoders, [`culvert::codec`], are not
+//! re-exported: code that needs them depends on culvert.
 //!
 //! # Features
 //!
-//! - **`plumbob-async`** — implements [`plumbob_async::ScdcClient`] for [`Scdc<T>`], connecting
+//! - **`plumbob-async`** — implements `plumbob_async::ScdcClient` for [`Scdc<T>`], connecting
 //!   culvert-async to the async FRL link training state machine.
 
 #![no_std]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
@@ -20,6 +24,12 @@ mod client;
 
 pub use client::Scdc;
 pub use culvert::{
-    CedCount, CedCounters, FfeLevels, FrlConfig, FrlRate, LtpReq, ProtocolError, ScdcError,
-    ScramblerStatus, StatusFlags, TmdsConfig, UpdateFlags,
+    CedCount, CedCounters, ClearableUpdateFlags, Config0, FfeLevels, FrlConfig, FrlRate, LtpReq,
+    LtpRequests, ProtocolError, RsCorrectionCount, ScdcError, ScramblerStatus, SourceTestConfig,
+    StatusFlags, TmdsConfig, UpdateFlags,
 };
+/// The async transport `Scdc<T>` is generic over, re-exported from `hdmi-hal-async`.
+pub use hdmi_hal_async::scdc::ScdcTransport;
+/// The transport's `Send` twin, re-exported from `hdmi-hal-async`: bound generic code by it
+/// to spawn work through `Scdc<T>` on a multi-threaded executor.
+pub use hdmi_hal_async::scdc::SendScdcTransport;

@@ -2,11 +2,11 @@
 //!
 //! A `SimulatedScdc` backed by a 256-byte register array stands in for the
 //! DDC/I²C link to a physical sink. Registers are pre-loaded with a plausible
-//! 6 Gbps 3-lane FRL sink state and the example walks through the full read
+//! 6 Gbps 3-lane FRL sink state and the example walks through the main read
 //! and write paths.
 
 use core::convert::Infallible;
-use culvert_async::{FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig, UpdateFlags};
+use culvert_async::{ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
 use hdmi_hal_async::scdc::ScdcTransport;
 
 // ── simulated transport ───────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ impl SimulatedScdc {
 impl ScdcTransport for SimulatedScdc {
     type Error = Infallible;
 
-    async fn read(&mut self, reg: u8) -> Result<u8, Infallible> {
+    async fn read(&self, reg: u8) -> Result<u8, Infallible> {
         Ok(self.regs[reg as usize])
     }
 
@@ -56,19 +56,17 @@ async fn run() {
     transport.set(0x21, 0x01);
 
     // Status_Flags_0:
-    //   clock_detected (bit 0) | cable_connected (bit 1) | ch0–ch2 locked (bits 2–4) | flt_ready (bit 6)
-    //   = 0b0101_0111 = 0x57
-    transport.set(0x40, 0x57);
+    //   clock_detected (bit 0) | ch0–ch2 locked (bits 1–3) | flt_ready (bit 6)
+    //   = 0b0100_1111 = 0x4F
+    transport.set(0x40, 0x4F);
 
-    // Status_Flags_1:
-    //   frl_start (bit 0) | LTP_Req = Lfsr2 (nibble 3 in bits[7:4])
-    //   = 0b0011_0001 = 0x31
-    transport.set(0x41, 0x31);
+    // Status_Flags_1 / Status_Flags_2: per-lane LTP requests
+    //   lanes 0–2 request LFSR 2 (0x7); lane 3 is unused in 3-lane FRL
+    transport.set(0x41, 0x77);
+    transport.set(0x42, 0x07);
 
-    // Update_0: frl_update (bit 2) set — sink reports FRL status changed
-    transport.set(0x10, 0x04);
-    // Update_1: dsc_update (bit 0) clear
-    transport.set(0x11, 0x00);
+    // Update_0: flt_update (bit 5) set — sink reports new link training pattern requests
+    transport.set(0x10, 0x20);
 
     // ERR_DET lane 0: valid (bit 7 of high byte), count = 0x0002
     transport.set(0x50, 0x02); // low byte
@@ -79,10 +77,10 @@ async fn run() {
     transport.set(0x53, 0x81); // high byte: valid, upper counter bits = 0x01
 
     // Lanes 2 and 3: validity bit not set → will decode as None
-    transport.set(0x54, 0x00);
-    transport.set(0x55, 0x00);
-    transport.set(0x56, 0x00);
-    transport.set(0x57, 0x00);
+    transport.set(0x54, 0x00); // lane 2 low
+    transport.set(0x55, 0x00); // lane 2 high
+    transport.set(0x57, 0x00); // lane 3 low (0x56 is the CED checksum)
+    transport.set(0x58, 0x00); // lane 3 high
 
     let mut scdc = Scdc::new(transport);
 
@@ -96,19 +94,22 @@ async fn run() {
 
     let flags = scdc.read_status_flags().await.unwrap();
     println!("Clock detected:     {}", flags.clock_detected);
-    println!("Cable connected:    {}", flags.cable_connected);
     println!(
-        "Lane lock:          ch0={} ch1={} ch2={} ch3={}",
-        flags.ch0_locked, flags.ch1_locked, flags.ch2_locked, flags.ch3_locked
+        "Lane lock:          ch0={} ch1={} ch2={} ln3={}",
+        flags.ch0_locked, flags.ch1_locked, flags.ch2_locked, flags.ln3_locked
     );
     println!("FLT_Ready:          {}", flags.flt_ready);
-    println!("FRL_Start:          {}", flags.frl_start);
-    println!("LTP_Req:            {:?}", flags.ltp_req);
+
+    let requests = scdc.read_ltp_requests().await.unwrap();
+    println!(
+        "LTP requests:       {:?} {:?} {:?} {:?}",
+        requests.lane0, requests.lane1, requests.lane2, requests.lane3
+    );
 
     let updates = scdc.read_update_flags().await.unwrap();
     println!(
-        "Update flags:       status={} ced={} frl={} dsc={}",
-        updates.status_update, updates.ced_update, updates.frl_update, updates.dsc_update
+        "Update flags:       status={} ced={} frl_start={} flt_update={}",
+        updates.status_update, updates.ced_update, updates.frl_start, updates.flt_update
     );
 
     let ced = scdc.read_ced().await.unwrap();
@@ -133,18 +134,19 @@ async fn run() {
     println!("Wrote TMDS_Config: scrambling_enable=true, high_tmds_clock_ratio=true");
 
     // Request 6 Gbps 3-lane FRL with 2 FFE levels.
-    scdc.write_frl_config(FrlConfig {
-        frl_rate: FrlRate::Rate6Gbps3Lanes,
-        dsc_frl_max: false,
-        ffe_levels: FfeLevels::Ffe2,
-    })
+    scdc.write_frl_config(FrlConfig::new(
+        FrlRate::Rate6Gbps3Lanes,
+        FfeLevels::new(2).unwrap(),
+    ))
     .await
     .unwrap();
-    println!("Wrote Config_0: frl_rate=6G/3L, dsc_frl_max=false, ffe_levels=Ffe2");
+    println!("Wrote Config_1: frl_rate=6G/3L, ffe_levels=2");
 
-    // Acknowledge the frl_update flag (write-1-to-clear).
-    scdc.clear_update_flags(UpdateFlags::new(false, false, true, false))
-        .await
-        .unwrap();
-    println!("Cleared frl_update flag");
+    // Acknowledge the flt_update flag (write-1-to-clear).
+    scdc.clear_update_flags(ClearableUpdateFlags::new(
+        false, false, false, false, true, false,
+    ))
+    .await
+    .unwrap();
+    println!("Cleared flt_update flag");
 }
