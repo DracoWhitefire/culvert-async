@@ -55,7 +55,7 @@ impl<T: ScdcTransport> Scdc<T> {
 #[cfg(test)]
 mod tests {
     use super::super::Scdc;
-    use super::super::test_transport::TestTransport;
+    use super::super::test_transport::{Op, TestTransport};
     use crate::CedCount;
     use crate::ScdcError;
 
@@ -88,6 +88,27 @@ mod tests {
         let ced = Scdc::new(sim).read_ced().await.unwrap();
         assert_eq!(ced.lane0, None);
         assert_eq!(ced.lane3.map(|c| c.value()), Some(0x0001));
+    }
+
+    #[pollster::test]
+    async fn read_ced_reads_each_counter_register_once_in_order() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.read_ced().await.unwrap();
+        // 0x56, the CED checksum, is not read.
+        let reads = [0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x57, 0x58].map(|r| Some(Op::Read(r)));
+        let log = scdc.into_transport().log();
+        assert_eq!(log[..8], reads);
+        assert_eq!(log[8], None);
+    }
+
+    #[pollster::test]
+    async fn read_rs_correction_reads_low_then_high() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.read_rs_correction().await.unwrap();
+        assert_eq!(
+            scdc.into_transport().log()[..3],
+            [Some(Op::Read(0x59)), Some(Op::Read(0x5A)), None]
+        );
     }
 
     #[pollster::test]

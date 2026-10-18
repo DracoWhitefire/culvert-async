@@ -38,7 +38,7 @@ impl<T: ScdcTransport> Scdc<T> {
 #[cfg(test)]
 mod tests {
     use super::super::Scdc;
-    use super::super::test_transport::TestTransport;
+    use super::super::test_transport::{Op, TestTransport};
     use crate::ScdcError;
     use crate::{ClearableUpdateFlags, UpdateFlags};
 
@@ -109,6 +109,20 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(scdc.into_transport().get(0x10), 0x20);
+    }
+
+    #[pollster::test]
+    async fn clear_update_flags_is_one_write() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.clear_update_flags(ClearableUpdateFlags::new(
+            false, false, false, true, true, false,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            scdc.into_transport().log()[..2],
+            [Some(Op::Write(0x10, 0x30)), None]
+        );
     }
 
     #[pollster::test]

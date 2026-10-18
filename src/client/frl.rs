@@ -77,7 +77,7 @@ impl<T: ScdcTransport> Scdc<T> {
 #[cfg(test)]
 mod tests {
     use super::super::Scdc;
-    use super::super::test_transport::TestTransport;
+    use super::super::test_transport::{Op, TestTransport};
     use crate::{Config0, FfeLevels, FrlConfig, LtpReq, SourceTestConfig, StatusFlags};
     use crate::{ProtocolError, ScdcError};
     use display_types::HdmiForumFrl;
@@ -303,6 +303,26 @@ mod tests {
         assert_eq!(
             read(0x00),
             SourceTestConfig::new(false, false, false, false, false, false)
+        );
+    }
+
+    #[pollster::test]
+    async fn read_status_flags_reads_status_flags_0_once() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.read_status_flags().await.unwrap();
+        assert_eq!(
+            scdc.into_transport().log()[..2],
+            [Some(Op::Read(0x40)), None]
+        );
+    }
+
+    #[pollster::test]
+    async fn read_ltp_requests_reads_status_flags_1_then_2() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.read_ltp_requests().await.unwrap();
+        assert_eq!(
+            scdc.into_transport().log()[..3],
+            [Some(Op::Read(0x41)), Some(Op::Read(0x42)), None]
         );
     }
 
