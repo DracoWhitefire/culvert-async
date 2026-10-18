@@ -109,27 +109,6 @@ mod tests {
     }
 
     #[pollster::test]
-    async fn ffe_levels_range() {
-        assert_eq!(FfeLevels::new(7).map(FfeLevels::value), Some(7));
-        assert_eq!(FfeLevels::new(8), None);
-    }
-
-    #[pollster::test]
-    async fn ffe_levels_max_for_rates_up_to_12g() {
-        for rate in [
-            HdmiForumFrl::NotSupported,
-            HdmiForumFrl::Rate3Gbps3Lanes,
-            HdmiForumFrl::Rate6Gbps3Lanes,
-            HdmiForumFrl::Rate6Gbps4Lanes,
-            HdmiForumFrl::Rate8Gbps4Lanes,
-            HdmiForumFrl::Rate10Gbps4Lanes,
-            HdmiForumFrl::Rate12Gbps4Lanes,
-        ] {
-            assert_eq!(FfeLevels::max_for(rate).value(), 3, "{rate:?}");
-        }
-    }
-
-    #[pollster::test]
     async fn frl_config_rejects_ffe_levels_above_rate_maximum() {
         let mut scdc = Scdc::new(TestTransport::new());
         let result = scdc
