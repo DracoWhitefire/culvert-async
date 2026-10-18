@@ -52,6 +52,9 @@ jobs:
       - name: Test (plumbob-async feature)
         run: cargo test --locked --features plumbob-async
 
+      - name: Run the example
+        run: cargo run --locked --example scdc
+
       - name: Build (no_std)
         run: cargo build --locked --no-default-features --target thumbv7em-none-eabi
 
