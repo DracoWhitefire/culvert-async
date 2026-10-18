@@ -18,9 +18,8 @@ need both crates.
 
 ## Usage
 
-```toml
-[dependencies]
-culvert-async = "0.1"
+```sh
+cargo add culvert-async
 ```
 
 Wrap your async transport in `Scdc` and await typed methods:
@@ -69,13 +68,18 @@ if let Some(count) = ced.lane0 {
 To use `culvert-async` as the SCDC backend for `plumbob-async`'s link training state
 machine, enable the `plumbob-async` feature:
 
-```toml
-[dependencies]
-culvert-async  = { version = "0.1", features = ["plumbob-async"] }
-plumbob-async  = "0.1"
+```sh
+cargo add culvert-async --features plumbob-async
+cargo add plumbob-async
 ```
 
 `Scdc<T>` then implements `plumbob_async::ScdcClient` automatically.
+
+To spawn training on a multi-threaded executor, use a transport that implements
+hdmi-hal-async's `SendScdcTransport` and a PHY that implements `SendHdmiPhy`: training
+through `Scdc<T>` is then `Send`, also in code generic over the transport and the PHY
+(bound them by the twins alone). Code bounded by plumbob-async's `SendScdcClient` needs a
+small wrapper; see [`doc/architecture.md`](doc/architecture.md) ("`Send` futures").
 
 ## Register coverage
 

@@ -111,10 +111,10 @@ accesses yield to the executor rather than blocking.
 culvert-async implements `plumbob_async::ScdcClient` for `Scdc<T>`, gated behind a
 `plumbob-async` cargo feature.
 
-```toml
-# Cargo.toml of a crate using both
-culvert-async  = { version = "0.1", features = ["plumbob-async"] }
-plumbob-async  = "0.1"
+```sh
+# a crate using both
+cargo add culvert-async --features plumbob-async
+cargo add plumbob-async
 ```
 
 Each of the eight `ScdcClient` methods awaits one culvert-async method, exactly as
@@ -168,11 +168,53 @@ traits but does not define them. The lint applies to trait definitions, not to i
 `Scdc<T>`'s futures are `Send` when the transport's are and the transport is `Sync`:
 `ScdcTransport::read` takes `&self`, so a future that reads holds `&T`. A transport with a
 `Cell` or `RefCell` inside is therefore fine on a single-threaded executor and cannot be
-spawned on a multi-threaded one. As with `hdmi-hal-async` and `plumbob-async`, code
-generic over the transport cannot prove its futures `Send` at all. The stack design
-document ("Sync and Async Companions", "`Send` futures for multi-threaded executors")
-records how this would be lifted — including why it would take a second client type next
-to `Scdc<T>` — and why it is deferred.
+spawned on a multi-threaded one.
+
+Code generic over the plain `ScdcTransport` cannot prove the futures `Send` at all: an
+`async fn` in a trait promises nothing about its future. Generic code bounds the
+transport by hdmi-hal-async's `Send` twin, `SendScdcTransport` (`Send + Sync`, with `Send`
+futures and errors), and the PHY by `SendHdmiPhy`. Then training through the plain
+`Scdc<T>` is `Send`: `Scdc<T>`'s `ScdcClient` implementation is concrete, so the compiler
+sees through it to the transport's futures. No second client type is needed, and a test
+(`tests/plumbob_async.rs`) checks this at compile time. Bound by the twins alone: an added
+`+ ScdcTransport` or `+ HdmiPhy` makes the compiler use that bound instead of the blanket
+implementation, and the futures are no longer known to be `Send`.
+
+```rust
+fn spawn_training<T, P>(mut trainer: FrlTrainer<Scdc<T>, P>)
+where
+    T: SendScdcTransport + 'static,
+    P: SendHdmiPhy + 'static,
+{
+    tokio::spawn(async move {
+        let _ = trainer.train(&rates, &TrainingConfig::default()).await;
+    });
+}
+```
+
+**Code bounded by `SendScdcClient`.** plumbob-async's `SendScdcClient` is the client's
+twin. `Scdc<T>` implements the plain `ScdcClient` for every transport and cannot also
+implement `SendScdcClient` for `Send` ones: plumbob-async's blanket implementation would
+give it `ScdcClient` twice (E0119). Code bounded by `C: SendScdcClient` (an integration
+layer generic over the client, for example) therefore cannot take `Scdc<T>` directly. A
+local wrapper that forwards each method can:
+
+```rust
+struct SendScdc<T>(Scdc<T>);
+
+impl<T: SendScdcTransport> SendScdcClient for SendScdc<T> {
+    type Error = ScdcError<T::Error>;
+
+    async fn read_flt_ready(&mut self) -> Result<bool, Self::Error> {
+        ScdcClient::read_flt_ready(&mut self.0).await
+    }
+    // … the other seven methods alike
+}
+```
+
+culvert-async does not ship that wrapper yet; it will when a consumer generic over
+`SendScdcClient` needs it (recorded in the stack design document, "Sync and Async
+Companions").
 
 ---
 

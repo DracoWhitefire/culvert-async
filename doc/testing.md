@@ -32,8 +32,9 @@ When compiled with `--features plumbob-async`, two more sets of tests run, both 
 `plumbob` feature tests made async:
 
 - **Unit tests** (`src/client/plumbob_client.rs`) call each method through the
-  `plumbob_async::ScdcClient` trait and assert on register bits: every request value (and
-  0x9 passed on as `LtpReq::Reserved`), each flag clear writing only its own bit, `Config_1`
+  `plumbob_async::ScdcClient` trait and assert on register bits: all seven `Update_0`
+  flags, every request value (and 0x9 passed on as `LtpReq::Reserved`), all six
+  `Source_Test_Configuration` bits, each flag clear writing only its own bit, `Config_1`
   encoding, culvert's FFE-levels check, CED validity bits, and transport errors.
 - **End-to-end tests** (`tests/plumbob_async.rs`) run plumbob-async's `FrlTrainer`
   through `Scdc<T>` against a sink simulated at the register level: a full training run,
@@ -45,6 +46,11 @@ When compiled with `--features plumbob-async`, two more sets of tests run, both 
   set, and the FFE maximum limited per rate. The simulated transport waits (returns
   `Pending` once) on every other operation, so training runs over I/O that really
   suspends.
+- **`Send` futures** (also `tests/plumbob_async.rs`): a function generic over
+  `SendScdcTransport` and `SendHdmiPhy` must return a `Send` future that trains through
+  the plain `Scdc<T>`, runs LTS:L and trains again with events, so it compiles only if
+  training through `Scdc<T>` could be spawned on a multi-threaded executor. It runs over
+  the same simulated sink, behind a `Mutex` (the transport twin is `Sync`).
 
 ### Example (`examples/scdc/main.rs`)
 
