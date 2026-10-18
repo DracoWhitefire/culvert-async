@@ -50,7 +50,7 @@ The following are out of scope:
 - **I²C / DDC transport** — platform backends implement `hdmi_hal_async::scdc::ScdcTransport`.
   culvert-async never touches I²C directly.
 - **New register coverage** — registers on culvert's roadmap are added to culvert first;
-  culvert-async gains the async method in the same release.
+  culvert-async gains the async method in its next release.
 
 ---
 
@@ -291,7 +291,7 @@ The principles are culvert's:
   culvert-async remains independently usable without the training layer as a dependency.
 - **No unsafe code.** `#![forbid(unsafe_code)]`.
 - **Parity with culvert.** When culvert adds a method or register group, culvert-async
-  adds its async counterpart in the same release.
+  adds its async counterpart in its next release.
 - **Attested releases.** Every release is published through a GitHub Actions workflow
   that signs the `.crate` package with [SLSA Build Level 2](https://slsa.dev) provenance.
   Verify with `gh attestation verify <file> --repo DracoWhitefire/culvert-async`.
