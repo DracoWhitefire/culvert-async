@@ -121,8 +121,45 @@ Each of the eight `ScdcClient` methods awaits one culvert-async method, exactly 
 culvert's `plumbob` feature calls one culvert method. The conversions between culvert's
 register types and plumbob's are culvert's own `From` impls — the feature enables
 `culvert/plumbob` to get them — so the sync and async adapters convert identically.
-`Scdc` does not wait between calls: the poll interval plumbob's limits assume (2 ms by
-default) belongs in the transport, where an async implementation can await a timer.
+
+**Polling and stopping early.** `Scdc` does not wait between calls. plumbob's limits
+assume one poll every 2 ms by default, and plumbob's contract puts the wait inside the two
+polled methods, `read_flt_ready` and `read_update_flags`. With `Scdc<T>` that means an
+`ScdcClient` of your own that wraps it, waits in those two methods and forwards the rest:
+
+```rust
+use core::time::Duration;
+use culvert_async::{Scdc, ScdcError, ScdcTransport};
+use plumbob_async::{ScdcClient, UpdateFlags};
+
+/// `Scdc<T>` that waits the poll interval in the two methods plumbob polls.
+struct Paced<T>(Scdc<T>);
+
+impl<T: ScdcTransport> ScdcClient for Paced<T> {
+    type Error = ScdcError<T::Error>;
+
+    async fn read_flt_ready(&mut self) -> Result<bool, Self::Error> {
+        tokio::time::sleep(Duration::from_millis(2)).await; // or the executor's timer
+        ScdcClient::read_flt_ready(&mut self.0).await
+    }
+
+    async fn read_update_flags(&mut self) -> Result<UpdateFlags, Self::Error> {
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        ScdcClient::read_update_flags(&mut self.0).await
+    }
+
+    // … the other six methods forward without waiting
+}
+```
+
+A wall-clock deadline or a cancel signal goes in the same two methods, following
+plumbob's "Stopping early" rule (`plumbob::ScdcClient`): return one error of your own
+(the wrapper's `Error` then wraps `ScdcError`), let every later call through, and never
+fail a read made after a `write_frl_config` with `NotSupported` until a `write_frl_config`
+with an FRL rate starts training again. Neither belongs in the transport: a wait there
+applies to every register access, not only the polls, and a transport cannot tell the
+polled reads from LTS:L's, so a deadline there can fail LTS:L itself and leave the sink in
+FRL. `Paced<T>` stays `Send` over a `SendScdcTransport`, as `Scdc<T>` does.
 
 ---
 
@@ -165,8 +202,9 @@ traits but does not define them. The lint applies to trait definitions, not to i
 
 ## `Send` futures
 
-`Scdc<T>`'s futures are `Send` when the transport's are and the transport is `Sync`:
-`ScdcTransport::read` takes `&self`, so a future that reads holds `&T`. A transport with a
+`Scdc<T>`'s futures are `Send` when the transport's are and the transport is `Send` and
+`Sync`: a future holds `&mut Scdc<T>`, and `ScdcTransport::read` takes `&self`, so a future
+that reads holds `&T` as well. A transport with a
 `Cell` or `RefCell` inside is therefore fine on a single-threaded executor and cannot be
 spawned on a multi-threaded one.
 
@@ -181,16 +219,34 @@ sees through it to the transport's futures. No second client type is needed, and
 implementation, and the futures are no longer known to be `Send`.
 
 ```rust
+use culvert_async::{Scdc, SendScdcTransport};
+use plumbob_async::{FrlTrainer, HdmiForumFrl, SendHdmiPhy, TrainingConfig};
+
+const RATES: &[HdmiForumFrl] = &[
+    HdmiForumFrl::Rate12Gbps4Lanes,
+    HdmiForumFrl::Rate6Gbps4Lanes,
+];
+
 fn spawn_training<T, P>(mut trainer: FrlTrainer<Scdc<T>, P>)
 where
     T: SendScdcTransport + 'static,
     P: SendHdmiPhy + 'static,
 {
     tokio::spawn(async move {
-        let _ = trainer.train(&rates, &TrainingConfig::default()).await;
+        let _ = trainer.train(RATES, &TrainingConfig::default()).await;
     });
 }
 ```
+
+Both twins are re-exported where the code needs them: `SendScdcTransport` from
+culvert-async, `SendHdmiPhy` from plumbob-async. `train_with_events` is `Send` too when its
+callback is.
+
+**Cancellation.** Every method performs at most one write and keeps no state between
+calls, so a dropped future leaves `Scdc<T>` usable (plumbob-async's `exit_to_tmds` then
+returns a dropped training attempt to TMDS). The multi-register reads, `read_ced` and
+`read_rs_correction`, read one register at a time and can tear; their documentation says
+so.
 
 **Code bounded by `SendScdcClient`.** plumbob-async's `SendScdcClient` is the client's
 twin. `Scdc<T>` implements the plain `ScdcClient` for every transport and cannot also

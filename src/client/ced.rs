@@ -32,6 +32,9 @@ impl<T: ScdcTransport> Scdc<T> {
     ///
     /// Returns `None` if the high byte's validity bit (bit 7) is not set. The count is
     /// maintained by the sink in FRL mode; `UpdateFlags::rsed_update` signals a change.
+    ///
+    /// The two bytes are separate reads, so a count the sink updates between them can be
+    /// torn. Treat it as a diagnostic.
     pub async fn read_rs_correction(
         &mut self,
     ) -> Result<Option<RsCorrectionCount>, ScdcError<T::Error>> {

@@ -40,7 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `ScdcTransport` re-exported at the crate root, from `hdmi-hal-async`.
+- `ScdcTransport` and its `Send` twin `SendScdcTransport` re-exported at the crate root,
+  from `hdmi-hal-async`, so `Send` code needs no direct dependency on it.
 - `write_config_0`, `read_source_test_config`, `read_ltp_requests` and
   `read_rs_correction`, with the re-exports `Config0`, `SourceTestConfig`, `LtpRequests`
   and `RsCorrectionCount`.

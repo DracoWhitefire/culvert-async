@@ -14,8 +14,12 @@ use super::Scdc;
 /// Typed SCDC access for plumbob-async's link training.
 ///
 /// `Scdc` does not wait between calls. plumbob's state machine polls `read_flt_ready` and
-/// `read_update_flags` in a loop whose limits assume one poll every 2 ms by default;
-/// await that interval in the transport (or a wrapper around it).
+/// `read_update_flags` in a loop whose limits assume one poll every 2 ms by default; await
+/// that interval inside those two methods, in an `ScdcClient` of your own that wraps
+/// `Scdc<T>` and forwards the other six (`doc/architecture.md` shows one). A deadline or
+/// cancel signal belongs there too, following plumbob's "Stopping early" rule. Not in the
+/// transport: there a wait applies to every register access, and a transport cannot tell
+/// the polled reads from LTS:L's.
 impl<T: ScdcTransport> ScdcClient for Scdc<T> {
     type Error = ScdcError<T::Error>;
 

@@ -75,11 +75,13 @@ cargo add plumbob-async
 
 `Scdc<T>` then implements `plumbob_async::ScdcClient` automatically.
 
-To spawn training on a multi-threaded executor, use a transport that implements
-hdmi-hal-async's `SendScdcTransport` and a PHY that implements `SendHdmiPhy`: training
-through `Scdc<T>` is then `Send`, also in code generic over the transport and the PHY
-(bound them by the twins alone). Code bounded by plumbob-async's `SendScdcClient` needs a
-small wrapper; see [`doc/architecture.md`](doc/architecture.md) ("`Send` futures").
+Training through `Scdc<T>` can run on a multi-threaded executor when the transport is
+`Send` and `Sync` and its futures are `Send`. Code generic over the transport and the PHY
+proves that with the `Send` twins: bound the transport by `SendScdcTransport`
+(re-exported here) and the PHY by `SendHdmiPhy` (re-exported by plumbob-async), and by the
+twins alone. Code bounded by plumbob-async's `SendScdcClient` needs a small wrapper; see
+[`doc/architecture.md`](doc/architecture.md) ("`Send` futures"), which also shows where the
+poll interval and a deadline belong (not in the transport).
 
 ## Register coverage
 
@@ -128,8 +130,8 @@ flowchart LR
     plumbob_async -.->|"will implement LinkTrainer"| integration
 ```
 
-`culvert-async` does not depend on `plumbob-async`. The relationship runs the other way:
-enabling the `plumbob-async` feature makes `Scdc<T>` implement
+`plumbob-async` does not depend on `culvert-async`; culvert-async depends on plumbob-async
+only with the optional `plumbob-async` feature, which makes `Scdc<T>` implement
 `plumbob_async::ScdcClient`. Any crate that implements `ScdcClient` is substitutable.
 
 ## Out of scope

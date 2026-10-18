@@ -6,7 +6,8 @@
 //! and async clients always agree.
 //!
 //! All register types and error types are re-exported from `culvert` so that callers do not
-//! need to depend on both crates.
+//! need to depend on both crates, and the transport trait and its `Send` twin from
+//! `hdmi-hal-async`.
 //!
 //! # Features
 //!
@@ -27,3 +28,6 @@ pub use culvert::{
 };
 /// The async transport `Scdc<T>` is generic over, re-exported from `hdmi-hal-async`.
 pub use hdmi_hal_async::scdc::ScdcTransport;
+/// The transport's `Send` twin, re-exported from `hdmi-hal-async`: bound generic code by it
+/// to spawn work through `Scdc<T>` on a multi-threaded executor.
+pub use hdmi_hal_async::scdc::SendScdcTransport;
