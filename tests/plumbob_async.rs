@@ -11,12 +11,14 @@ use core::cell::{Cell, RefCell};
 use core::convert::Infallible;
 use core::future::Future;
 use core::pin::Pin;
+use core::sync::atomic::{AtomicU32, Ordering};
 use core::task::{Context, Poll};
+use std::sync::Mutex;
 
 use culvert_async::{Scdc, ScdcError};
 use display_types::cea861::hdmi_forum::HdmiForumFrl;
-use hdmi_hal_async::phy::HdmiPhy;
-use hdmi_hal_async::scdc::ScdcTransport;
+use hdmi_hal_async::phy::{HdmiPhy, SendHdmiPhy};
+use hdmi_hal_async::scdc::{ScdcTransport, SendScdcTransport};
 use hdmi_hal_async::{EqParams, FrlOutput, LanePatterns, LtpPattern};
 use plumbob_async::{
     FallbackReason, FfeLevels, FrlTrainer, TmdsExit, TrainingConfig, TrainingError, TrainingEvent,
@@ -622,4 +624,120 @@ async fn the_ffe_maximum_is_limited_per_rate_through_culvert() {
         ));
         assert_eq!(sink.config_1_writes, [config_1]);
     }
+}
+
+// ── `Send` futures ────────────────────────────────────────────────────────────
+
+/// The sink behind a `SendScdcTransport`. The twin is `Sync` (`read` takes `&self`), so
+/// the sink's state is behind a `Mutex`, locked only after the wait: no guard is held
+/// across an `.await`. Every other operation waits once, as `SinkTransport`'s do.
+struct SendSinkTransport {
+    sink: Mutex<Sink>,
+    operations: AtomicU32,
+}
+
+impl SendSinkTransport {
+    async fn maybe_wait(&self) {
+        if self.operations.fetch_add(1, Ordering::Relaxed) % 2 == 1 {
+            YieldOnce(false).await;
+        }
+    }
+}
+
+impl SendScdcTransport for SendSinkTransport {
+    type Error = Nack;
+
+    async fn read(&self, reg: u8) -> Result<u8, Nack> {
+        self.maybe_wait().await;
+        Ok(self.sink.lock().unwrap().read(reg))
+    }
+
+    async fn write(&mut self, reg: u8, value: u8) -> Result<(), Nack> {
+        self.maybe_wait().await;
+        self.sink.get_mut().unwrap().write(reg, value);
+        Ok(())
+    }
+}
+
+/// The recording PHY behind hdmi-hal-async's `Send` twin.
+struct SendPhy(Phy);
+
+impl SendHdmiPhy for SendPhy {
+    type Error = Infallible;
+
+    async fn set_frl_rate(&mut self, rate: HdmiForumFrl) -> Result<(), Infallible> {
+        HdmiPhy::set_frl_rate(&mut self.0, rate).await
+    }
+
+    async fn send_ltp(&mut self, patterns: LanePatterns) -> Result<(), Infallible> {
+        HdmiPhy::send_ltp(&mut self.0, patterns).await
+    }
+
+    async fn set_frl_output(&mut self, output: FrlOutput) -> Result<(), Infallible> {
+        HdmiPhy::set_frl_output(&mut self.0, output).await
+    }
+
+    async fn adjust_equalization(&mut self, params: EqParams) -> Result<(), Infallible> {
+        HdmiPhy::adjust_equalization(&mut self.0, params).await
+    }
+
+    async fn set_scrambling(&mut self, enabled: bool) -> Result<(), Infallible> {
+        HdmiPhy::set_scrambling(&mut self.0, enabled).await
+    }
+}
+
+/// Trains, exits and trains again with events: the outcome of the first attempt, whether
+/// LTS:L succeeded, and how many events the second attempt reported.
+async fn train_exit_train<T: ScdcTransport, P: HdmiPhy>(
+    trainer: &mut FrlTrainer<Scdc<T>, P>,
+    config: &TrainingConfig,
+) -> (Option<TrainingOutcome>, bool, usize) {
+    let outcome = trainer
+        .train(&[R12], config)
+        .await
+        .ok()
+        .map(|trained| trained.outcome);
+    let exited = trainer.exit_to_tmds().await.is_ok();
+    let mut events = 0;
+    let _ = trainer
+        .train_with_events(&[R12], config, &mut |_| events += 1)
+        .await;
+    (outcome, exited, events)
+}
+
+/// [`train_exit_train`] through the plain `Scdc<T>`, generic over the transport's and the
+/// PHY's `Send` twins, as a future that must be `Send`: this compiles only if `Scdc<T>`'s
+/// futures are `Send` over a `SendScdcTransport`, so training through it could be spawned
+/// on a multi-threaded executor without a second client type.
+fn spawnable<'a, T: SendScdcTransport, P: SendHdmiPhy>(
+    trainer: &'a mut FrlTrainer<Scdc<T>, P>,
+    config: &'a TrainingConfig,
+) -> impl Future<Output = (Option<TrainingOutcome>, bool, usize)> + Send + 'a {
+    train_exit_train(trainer, config)
+}
+
+#[pollster::test]
+async fn training_through_scdc_is_send_over_send_twins() {
+    let mut sink = Sink::new();
+    sink.flt_ready_after = Some(0);
+    sink.rounds = vec![round(0, [0x0; 4])];
+    sink.frl_start_after = Some(0);
+    let transport = SendSinkTransport {
+        sink: Mutex::new(sink),
+        operations: AtomicU32::new(0),
+    };
+    let mut trainer = FrlTrainer::new(Scdc::new(transport), SendPhy(Phy::default()));
+    let (outcome, exited, events) = spawnable(&mut trainer, &ffe_3()).await;
+    assert!(matches!(
+        outcome,
+        Some(TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        })
+    ));
+    assert!(exited);
+    assert!(events > 0);
+    let (scdc, SendPhy(phy)) = trainer.into_parts();
+    assert!(scdc.into_transport().operations.into_inner() > 1);
+    assert!(phy.rates.contains(&R12));
 }
