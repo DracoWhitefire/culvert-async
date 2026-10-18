@@ -91,6 +91,24 @@ mod tests {
     }
 
     #[pollster::test]
+    async fn ced_each_lane_from_its_own_registers() {
+        // A distinct, asymmetric low/high pair per lane, so a swapped byte or lane shows.
+        let mut sim = TestTransport::new();
+        for (low, value) in [(0x50, 0x02), (0x52, 0x04), (0x54, 0x06)] {
+            sim.set(low, value);
+            sim.set(low + 1, 0x80 | (value + 1));
+        }
+        sim.set(0x56, 0xFF); // CED checksum, read as no lane
+        sim.set(0x57, 0x08);
+        sim.set(0x58, 0x89);
+        let ced = Scdc::new(sim).read_ced().await.unwrap();
+        assert_eq!(ced.lane0.map(|c| c.value()), Some(0x0302));
+        assert_eq!(ced.lane1.map(|c| c.value()), Some(0x0504));
+        assert_eq!(ced.lane2.map(|c| c.value()), Some(0x0706));
+        assert_eq!(ced.lane3.map(|c| c.value()), Some(0x0908));
+    }
+
+    #[pollster::test]
     async fn transport_error_on_any_read() {
         for n in 0..8 {
             assert!(
