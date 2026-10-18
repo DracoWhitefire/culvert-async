@@ -29,7 +29,7 @@ impl<T: ScdcTransport> ScdcClient for Scdc<T> {
 
     async fn clear_update_flags(
         &mut self,
-        flags: plumbob_async::UpdateFlags,
+        flags: plumbob_async::ClearableUpdateFlags,
     ) -> Result<(), Self::Error> {
         Scdc::clear_update_flags(self, flags.into()).await
     }
@@ -66,7 +66,10 @@ mod tests {
     use super::super::test_transport::TestTransport;
     use crate::{ProtocolError, ScdcError};
     use display_types::HdmiForumFrl;
-    use plumbob_async::{FfeLevels, FrlConfig, LtpReq, LtpRequests, ScdcClient, UpdateFlags};
+    use plumbob_async::{
+        ClearableUpdateFlags, FfeLevels, FrlConfig, LtpReq, LtpRequests, ScdcClient,
+        SourceTestConfig, UpdateFlags,
+    };
 
     fn scdc_with(regs: &[(u8, u8)]) -> Scdc<TestTransport> {
         let mut t = TestTransport::new();
@@ -92,48 +95,47 @@ mod tests {
         );
     }
 
-    // --- read_update_flags: Update_0 (0x10) bits 3–5
+    // --- read_update_flags: Update_0 (0x10), all seven flags
 
     #[pollster::test]
-    async fn read_update_flags_maps_the_training_flags() {
+    async fn read_update_flags_maps_every_flag() {
         let read = |byte| {
             pollster::block_on(ScdcClient::read_update_flags(&mut scdc_with(&[(
                 0x10, byte,
             )])))
             .unwrap()
         };
-        assert!(read(0x08).source_test_update);
-        assert!(read(0x10).frl_start);
-        assert!(read(0x20).flt_update);
-        // Bits plumbob does not use are not reported.
-        assert_eq!(read(0xC7), UpdateFlags::default());
+        let flag = |n: usize| {
+            let b = |i| i == n;
+            UpdateFlags::new(b(0), b(1), b(2), b(3), b(4), b(5), b(6))
+        };
+        for n in 0..7 {
+            assert_eq!(read(1 << n), flag(n), "bit {n}");
+        }
+        assert_eq!(
+            read(0x7F),
+            UpdateFlags::new(true, true, true, true, true, true, true)
+        );
+        // Bit 7 is reserved.
+        assert_eq!(read(0x80), UpdateFlags::default());
     }
 
     // --- clear_update_flags: write 1 to clear, only the given flags
 
     #[pollster::test]
-    async fn clear_update_flags_writes_only_the_given_bits() {
+    async fn clear_update_flags_writes_each_given_bit() {
         let clear = |flags| {
             let mut scdc = Scdc::new(TestTransport::new());
             pollster::block_on(ScdcClient::clear_update_flags(&mut scdc, flags)).unwrap();
             scdc.into_transport().get(0x10)
         };
-        let flt_update = UpdateFlags {
-            flt_update: true,
-            ..UpdateFlags::default()
-        };
-        let frl_start = UpdateFlags {
-            frl_start: true,
-            ..UpdateFlags::default()
-        };
-        let source_test_update = UpdateFlags {
-            source_test_update: true,
-            ..UpdateFlags::default()
-        };
-        assert_eq!(clear(flt_update), 0x20);
-        assert_eq!(clear(frl_start), 0x10);
-        assert_eq!(clear(source_test_update), 0x08);
-        assert_eq!(clear(UpdateFlags::default()), 0x00);
+        // Bit order without RR_Test (bit 2), which has no field.
+        for (n, bit) in [0, 1, 3, 4, 5, 6].into_iter().enumerate() {
+            let b = |i| i == n;
+            let flags = ClearableUpdateFlags::new(b(0), b(1), b(2), b(3), b(4), b(5));
+            assert_eq!(clear(flags), 1 << bit, "bit {bit}");
+        }
+        assert_eq!(clear(ClearableUpdateFlags::default()), 0x00);
     }
 
     // --- read_ltp_requests: Status_Flags_1/2 (0x41/0x42), one nibble per lane
@@ -143,12 +145,7 @@ mod tests {
         let mut scdc = scdc_with(&[(0x41, 0x65), (0x42, 0x87)]);
         assert_eq!(
             ScdcClient::read_ltp_requests(&mut scdc).await.unwrap(),
-            LtpRequests {
-                lane0: LtpReq::Lfsr0,
-                lane1: LtpReq::Lfsr1,
-                lane2: LtpReq::Lfsr2,
-                lane3: LtpReq::Lfsr3,
-            }
+            LtpRequests::new(LtpReq::Lfsr0, LtpReq::Lfsr1, LtpReq::Lfsr2, LtpReq::Lfsr3)
         );
     }
 
@@ -184,19 +181,23 @@ mod tests {
         assert_eq!(requests.lane2, LtpReq::None);
     }
 
-    // --- read_source_test_config: Source_Test_Configuration (0x35) bit 5
+    // --- read_source_test_config: Source_Test_Configuration (0x35), all six bits
 
     #[pollster::test]
-    async fn read_source_test_config_maps_flt_no_timeout() {
+    async fn read_source_test_config_maps_every_bit() {
         let read = |byte| {
             pollster::block_on(ScdcClient::read_source_test_config(&mut scdc_with(&[(
                 0x35, byte,
             )])))
             .unwrap()
-            .flt_no_timeout
         };
-        assert!(read(0x20));
-        assert!(!read(0xDF));
+        // Bits 1–3 and 5–7, in the order of the fields; bits 0 and 4 are reserved.
+        for (n, bit) in [1, 2, 3, 5, 6, 7].into_iter().enumerate() {
+            let b = |i| i == n;
+            let expected = SourceTestConfig::new(b(0), b(1), b(2), b(3), b(4), b(5));
+            assert_eq!(read(1 << bit), expected, "bit {bit}");
+        }
+        assert_eq!(read(0x11), SourceTestConfig::default());
     }
 
     // --- write_config_0_defaults: Config_0 (0x30) cleared
@@ -217,10 +218,7 @@ mod tests {
         let mut scdc = Scdc::new(TestTransport::new());
         ScdcClient::write_frl_config(
             &mut scdc,
-            FrlConfig {
-                rate: HdmiForumFrl::Rate12Gbps4Lanes,
-                ffe_levels: FfeLevels::new(3).unwrap(),
-            },
+            FrlConfig::new(HdmiForumFrl::Rate12Gbps4Lanes, FfeLevels::new(3).unwrap()),
         )
         .await
         .unwrap();
@@ -232,10 +230,7 @@ mod tests {
         let mut scdc = scdc_with(&[(0x31, 0x36)]);
         ScdcClient::write_frl_config(
             &mut scdc,
-            FrlConfig {
-                rate: HdmiForumFrl::NotSupported,
-                ffe_levels: FfeLevels::default(),
-            },
+            FrlConfig::new(HdmiForumFrl::NotSupported, FfeLevels::default()),
         )
         .await
         .unwrap();
@@ -248,10 +243,7 @@ mod tests {
         let mut scdc = Scdc::new(TestTransport::new());
         let result = ScdcClient::write_frl_config(
             &mut scdc,
-            FrlConfig {
-                rate: HdmiForumFrl::Rate6Gbps4Lanes,
-                ffe_levels: FfeLevels::MAX,
-            },
+            FrlConfig::new(HdmiForumFrl::Rate6Gbps4Lanes, FfeLevels::MAX),
         )
         .await;
         assert!(matches!(
@@ -295,7 +287,7 @@ mod tests {
         ));
         assert!(ScdcClient::read_update_flags(&mut fails()).await.is_err());
         assert!(
-            ScdcClient::clear_update_flags(&mut fails(), UpdateFlags::default())
+            ScdcClient::clear_update_flags(&mut fails(), ClearableUpdateFlags::default())
                 .await
                 .is_err()
         );
@@ -313,10 +305,7 @@ mod tests {
         assert!(
             ScdcClient::write_frl_config(
                 &mut fails(),
-                FrlConfig {
-                    rate: HdmiForumFrl::Rate6Gbps4Lanes,
-                    ffe_levels: FfeLevels::default(),
-                }
+                FrlConfig::new(HdmiForumFrl::Rate6Gbps4Lanes, FfeLevels::default())
             )
             .await
             .is_err()
