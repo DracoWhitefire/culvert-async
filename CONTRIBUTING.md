@@ -26,8 +26,8 @@ is fine.
 
 ## Coding standards
 
-- Run `cargo fmt` and `cargo clippy -- -D warnings` before pushing.
-- Public items need rustdoc comments (`cargo rustdoc -- -D missing_docs` must pass).
+- Run `cargo fmt` and `cargo clippy --all-features -- -D warnings` before pushing.
+- Public items need rustdoc comments (`cargo rustdoc --all-features -- -D missing_docs` must pass).
 - Follow the existing patterns in the codebase — see [`doc/architecture.md`](doc/architecture.md)
   for the design principles behind them.
 - `#![forbid(unsafe_code)]` is enforced; no unsafe code.

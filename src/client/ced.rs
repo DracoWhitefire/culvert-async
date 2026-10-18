@@ -1,82 +1,70 @@
 use hdmi_hal_async::scdc::ScdcTransport;
 
-use crate::{CedCount, CedCounters, ScdcError};
+use crate::ScdcError;
+use crate::{CedCounters, RsCorrectionCount};
+use culvert::codec;
 
 use super::Scdc;
-use super::address;
 
 impl<T: ScdcTransport> Scdc<T> {
-    /// Reads per-lane character error counts from `ERR_DET` registers (0x50–0x57).
+    /// Reads per-lane character error counts from `ERR_DET` registers (0x50–0x55 for
+    /// lanes 0–2, 0x57–0x58 for lane 3; 0x56 is the CED checksum).
     ///
     /// Each lane's counter is decoded from a low/high byte pair. The high byte's
     /// bit 7 is a validity flag; if it is not set the lane's counter is `None`.
+    ///
+    /// Each byte is a separate read, so a counter the sink updates between its low and
+    /// high byte can be torn, and the CED checksum (0x56) is not verified. Treat the
+    /// counts as diagnostics.
     pub async fn read_ced(&mut self) -> Result<CedCounters, ScdcError<T::Error>> {
-        let l0 = self
-            .transport
-            .read(address::ERR_DET_0_L)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let h0 = self
-            .transport
-            .read(address::ERR_DET_0_H)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let l1 = self
-            .transport
-            .read(address::ERR_DET_1_L)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let h1 = self
-            .transport
-            .read(address::ERR_DET_1_H)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let l2 = self
-            .transport
-            .read(address::ERR_DET_2_L)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let h2 = self
-            .transport
-            .read(address::ERR_DET_2_H)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let l3 = self
-            .transport
-            .read(address::ERR_DET_3_L)
-            .await
-            .map_err(ScdcError::Transport)?;
-        let h3 = self
-            .transport
-            .read(address::ERR_DET_3_H)
-            .await
-            .map_err(ScdcError::Transport)?;
+        let mut bytes = [0; 8];
+        for (byte, reg) in bytes.iter_mut().zip(codec::CED_REGISTERS) {
+            *byte = self
+                .transport
+                .read(reg)
+                .await
+                .map_err(ScdcError::Transport)?;
+        }
+        Ok(codec::decode_ced(bytes))
+    }
 
-        let decode = |lo: u8, hi: u8| -> Option<CedCount> {
-            (hi & 0x80 != 0).then(|| CedCount::new(((hi as u16) << 8) | lo as u16))
-        };
-
-        Ok(CedCounters::new(
-            decode(l0, h0),
-            decode(l1, h1),
-            decode(l2, h2),
-            decode(l3, h3),
-        ))
+    /// Reads the Reed-Solomon correction count from `RS_Correction_L/H` (0x59/0x5A).
+    ///
+    /// Returns `None` if the high byte's validity bit (bit 7) is not set. The count is
+    /// maintained by the sink in FRL mode; `UpdateFlags::rsed_update` signals a change.
+    ///
+    /// The two bytes are separate reads, so a count the sink updates between them can be
+    /// torn. Treat it as a diagnostic.
+    pub async fn read_rs_correction(
+        &mut self,
+    ) -> Result<Option<RsCorrectionCount>, ScdcError<T::Error>> {
+        let low = self
+            .transport
+            .read(codec::RS_CORRECTION_L)
+            .await
+            .map_err(ScdcError::Transport)?;
+        let high = self
+            .transport
+            .read(codec::RS_CORRECTION_H)
+            .await
+            .map_err(ScdcError::Transport)?;
+        Ok(codec::decode_rs_correction(low, high))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::Scdc;
-    use super::super::test_transport::TestTransport;
+    use super::super::test_transport::{Op, TestTransport};
     use crate::CedCount;
+    use crate::ScdcError;
 
     #[pollster::test]
     async fn ced_validity_bit_required() {
         // High byte with bit 7 clear → None regardless of counter value.
         let mut sim = TestTransport::new();
         sim.set(0x50, 0xFF);
-        sim.set(0x51, 0x7F); // validity bit clear
+        sim.set(0x51, 0x7F); // valid bit clear
         let ced = Scdc::new(sim).read_ced().await.unwrap();
         assert_eq!(ced.lane0, None);
     }
@@ -94,11 +82,51 @@ mod tests {
     #[pollster::test]
     async fn ced_lane3_independent() {
         let mut sim = TestTransport::new();
-        sim.set(0x56, 0x01);
-        sim.set(0x57, 0x80); // lane3 valid, count = 1
+        sim.set(0x56, 0xAA); // CED checksum, must not be read as lane 3
+        sim.set(0x57, 0x01);
+        sim.set(0x58, 0x80); // lane3 valid, count = 1
         let ced = Scdc::new(sim).read_ced().await.unwrap();
         assert_eq!(ced.lane0, None);
         assert_eq!(ced.lane3.map(|c| c.value()), Some(0x0001));
+    }
+
+    #[pollster::test]
+    async fn read_ced_reads_each_counter_register_once_in_order() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.read_ced().await.unwrap();
+        // 0x56, the CED checksum, is not read.
+        let reads = [0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x57, 0x58].map(|r| Some(Op::Read(r)));
+        let log = scdc.into_transport().log();
+        assert_eq!(log[..8], reads);
+        assert_eq!(log[8], None);
+    }
+
+    #[pollster::test]
+    async fn read_rs_correction_reads_low_then_high() {
+        let mut scdc = Scdc::new(TestTransport::new());
+        scdc.read_rs_correction().await.unwrap();
+        assert_eq!(
+            scdc.into_transport().log()[..3],
+            [Some(Op::Read(0x59)), Some(Op::Read(0x5A)), None]
+        );
+    }
+
+    #[pollster::test]
+    async fn ced_each_lane_from_its_own_registers() {
+        // A distinct, asymmetric low/high pair per lane, so a swapped byte or lane shows.
+        let mut sim = TestTransport::new();
+        for (low, value) in [(0x50, 0x02), (0x52, 0x04), (0x54, 0x06)] {
+            sim.set(low, value);
+            sim.set(low + 1, 0x80 | (value + 1));
+        }
+        sim.set(0x56, 0xFF); // CED checksum, read as no lane
+        sim.set(0x57, 0x08);
+        sim.set(0x58, 0x89);
+        let ced = Scdc::new(sim).read_ced().await.unwrap();
+        assert_eq!(ced.lane0.map(|c| c.value()), Some(0x0302));
+        assert_eq!(ced.lane1.map(|c| c.value()), Some(0x0504));
+        assert_eq!(ced.lane2.map(|c| c.value()), Some(0x0706));
+        assert_eq!(ced.lane3.map(|c| c.value()), Some(0x0908));
     }
 
     #[pollster::test]
@@ -108,7 +136,39 @@ mod tests {
                 Scdc::new(TestTransport::failing_after(n))
                     .read_ced()
                     .await
-                    .is_err()
+                    .is_err_and(|error| matches!(error, ScdcError::Transport(())))
+            );
+        }
+    }
+
+    #[pollster::test]
+    async fn rs_correction_valid_and_invalid() {
+        let mut sim = TestTransport::new();
+        sim.set(0x59, 0x34);
+        sim.set(0x5A, 0x81); // valid, upper counter bits = 0x01
+        assert_eq!(
+            Scdc::new(sim)
+                .read_rs_correction()
+                .await
+                .unwrap()
+                .map(|c| c.value()),
+            Some(0x0134)
+        );
+
+        let mut sim = TestTransport::new();
+        sim.set(0x59, 0xFF);
+        sim.set(0x5A, 0x7F); // validity bit clear
+        assert_eq!(Scdc::new(sim).read_rs_correction().await.unwrap(), None);
+    }
+
+    #[pollster::test]
+    async fn rs_correction_transport_error() {
+        for n in 0..2 {
+            assert!(
+                Scdc::new(TestTransport::failing_after(n))
+                    .read_rs_correction()
+                    .await
+                    .is_err_and(|error| matches!(error, ScdcError::Transport(())))
             );
         }
     }

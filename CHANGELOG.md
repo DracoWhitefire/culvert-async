@@ -7,11 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **The register map is culvert's corrected one, and the re-exported types follow it.**
+  Every method now reads and writes the registers `culvert::codec` names and converts with
+  its functions, instead of culvert-async's own copy of culvert's previous, incorrect map
+  (see culvert 0.2.0's changelog, *Fixed*). The register and error types re-exported here
+  are culvert 0.2's:
+  - `write_frl_config` writes `Config_1` (0x31) instead of `Config_0` (0x30).
+    `FrlConfig` is `#[non_exhaustive]`, built with `FrlConfig::new(frl_rate, ffe_levels)`;
+    `FrlConfig::dsc_frl_max` is removed (`DSC_FRL_Max` is a sink-written flag, read with
+    `read_source_test_config`). `FfeLevels` is the highest TxFFE level index (0–7,
+    `FfeLevels::new`, `FfeLevels::value`) instead of the `Ffe0`–`Ffe7` enum, and
+    `write_frl_config` returns `ProtocolError::FfeLevelsOutOfRange`, writing nothing, when
+    it exceeds the maximum for the rate (3 up to 12 Gbps, 7 above).
+  - `read_status_flags` decodes `Status_Flags_0` only: `cable_connected`, `ch3_locked`,
+    `frl_start` and `ltp_req` are removed from `StatusFlags`, and the method no longer
+    reads `Status_Flags_1` or returns `ProtocolError::UnknownLtpReq`.
+  - Link training pattern requests are read per lane with `read_ltp_requests`. `LtpReq`
+    follows the specification's values (LFSR 0–3 are 0x5–0x8; `AllOnes`, `AllZeros`,
+    `NyquistClock`, `DdeCompliance`, `FfeChange` and `RateChange` are added), and an
+    undefined value is `LtpReq::Reserved(value)` rather than an error:
+    `ProtocolError::UnknownLtpReq` is removed.
+  - `UpdateFlags` decodes all seven `Update_0` flags; `frl_update` and `dsc_update` are
+    removed, and `Update_1` (0x11) is no longer read or written. `clear_update_flags` takes
+    culvert's new `ClearableUpdateFlags` instead of `UpdateFlags`: every flag but
+    `rr_test`, which the source does not clear (a provisional rule; see culvert's
+    `doc/architecture.md`), with `UpdateFlags::clearable()` for a read-then-clear.
+  - `read_ced` reads lane 3 from 0x57/0x58; 0x56, which it read before, is the CED
+    checksum.
+- **`hdmi-hal-async` updated to 0.2.1**: `Scdc<T>`'s transport implements hdmi-hal-async
+  0.2's `ScdcTransport`, whose `read` takes `&self` instead of `&mut self`. Transports
+  must change the receiver and use interior mutability for any state changed during
+  reads. The new `read_block` method has a default and needs no changes.
+- **`culvert` updated to 0.2, and `display-types` to 0.4**: the re-exported
+  register and error types are the new culvert's, and `FrlRate` (culvert's re-export of
+  display-types' `HdmiForumFrl`) is display-types 0.4's type. Code that passes a
+  display-types 0.3 `HdmiForumFrl` must move to display-types 0.4.
+- **The `plumbob-async` feature implements plumbob-async 0.2's per-lane `ScdcClient`**:
+  the eight methods of plumbob's link training states (`read_flt_ready`,
+  `read_update_flags`, `clear_update_flags`, `read_ltp_requests`,
+  `read_source_test_config`, `write_config_0_defaults`, `write_frl_config`, `read_ced`);
+  `clear_update_flags` takes plumbob's `ClearableUpdateFlags`. The conversions are
+  culvert's own: the feature enables culvert's `plumbob` feature. The feature now
+  requires plumbob-async 0.2 (and so plumbob 0.3.1); see plumbob-async's changelog for the
+  changes code using it meets, such as `#[non_exhaustive]` outcomes and events.
+
 ### Added
 
+- `ScdcTransport` and its `Send` twin `SendScdcTransport` re-exported at the crate root,
+  from `hdmi-hal-async`, so `Send` code needs no direct dependency on it.
+- `write_config_0`, `read_source_test_config`, `read_ltp_requests` and
+  `read_rs_correction`, with the re-exports `Config0`, `SourceTestConfig`, `LtpRequests`
+  and `RsCorrectionCount`.
+- **Training through `Scdc<T>` can run on a multi-threaded executor**: over a transport
+  that implements hdmi-hal-async's `SendScdcTransport`, `Scdc<T>`'s futures are `Send`,
+  so with a `SendHdmiPhy` the training futures are `Send` in code generic over the
+  transport and the PHY. No second client type is needed for that. Code bounded by
+  plumbob-async's `SendScdcClient` instead cannot take `Scdc<T>`, which implements the
+  plain `ScdcClient`; a local wrapper type that implements `SendScdcClient` by forwarding
+  to it does.
 - **SLSA Build Level 2 provenance** — release artifacts are attested via
   `actions/attest-build-provenance` and verified with
   `gh attestation verify <file> --repo DracoWhitefire/culvert-async`.
+
+### Internal
+
+- The crate documentation no longer links to `plumbob_async::ScdcClient`, which only
+  resolves with the `plumbob-async` feature, so the docs build without it.
+- **CI builds for a `no_std` target** — new `Build (no_std)` steps build the crate for
+  `thumbv7em-none-eabi`, with and without the `plumbob-async` feature. Nothing checked a
+  target without `std` before, so a dependency that enables `std` (as hdmi-hal did
+  through `display-types`) went unnoticed.
+  The publish workflow runs the same build steps.
+- The client modules, their tests and the example are culvert's with `async`/`.await`;
+  culvert-async's own register address module is removed. The plumbob-async adapter's
+  tests mirror culvert's: all seven `Update_0` flags read, each clearable flag written to
+  its own bit, and all six `Source_Test_Configuration` bits.
+- **End-to-end tests** of plumbob-async's training through `Scdc<T>`
+  (`tests/plumbob_async.rs`), against a sink simulated at the register level.
+- **A test checks the `Send` futures at compile time** — a function generic over
+  `SendScdcTransport` and `SendHdmiPhy` must return a `Send` future that trains through
+  `Scdc<T>`, runs LTS:L and trains again with events.
 
 ## [0.1.0] - 2026-04-05
 
@@ -20,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Async SCDC client**
 
 - `Scdc<T>` — stateless async typed client wrapping an
-  [`hdmi_hal_async::scdc::ScdcTransport`]. Structurally identical to `culvert::Scdc<T>`
+  `hdmi_hal_async::scdc::ScdcTransport`. Structurally identical to `culvert::Scdc<T>`
   but every method is `async fn` and the transport bound is the async variant.
 - `Scdc::new(transport)` and `Scdc::into_transport()` for construction and unwrapping.
 
@@ -66,7 +143,7 @@ not need to depend on both crates: `TmdsConfig`, `ScramblerStatus`, `FrlConfig`,
 
 **`plumbob-async` feature**
 
-- Implements [`plumbob_async::ScdcClient`] for `Scdc<T>`, bridging `write_frl_config`,
+- Implements `plumbob_async::ScdcClient` for `Scdc<T>`, bridging `write_frl_config`,
   `read_training_status`, and `read_ced` to the `plumbob-async` trait vocabulary.
   Enabled by `features = ["plumbob-async"]`.
 
