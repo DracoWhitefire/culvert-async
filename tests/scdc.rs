@@ -8,7 +8,7 @@
 use core::convert::Infallible;
 use culvert_async::{
     ClearableUpdateFlags, Config0, FfeLevels, FrlConfig, FrlRate, LtpReq, Scdc, ScdcTransport,
-    TmdsConfig,
+    SendScdcTransport, TmdsConfig,
 };
 
 // ── simulated transport ───────────────────────────────────────────────────────
@@ -277,7 +277,65 @@ async fn every_type_is_re_exported_at_the_crate_root() {
     let _: Option<culvert_async::TmdsConfig> = None;
     let _: Option<culvert_async::UpdateFlags> = None;
     let _: Option<Scdc<SimulatedScdc>> = None;
-    // The traits: `ScdcTransport` is used above; the `Send` twin is named here.
-    #[allow(unused_imports)]
-    use culvert_async::SendScdcTransport as _;
+    // The traits, `ScdcTransport` and `SendScdcTransport`, are imported at the top.
+}
+
+// ── `Send` futures ────────────────────────────────────────────────────────────
+
+/// `SimulatedScdc` behind the transport's `Send` twin.
+struct SendSimulatedScdc(SimulatedScdc);
+
+impl SendScdcTransport for SendSimulatedScdc {
+    type Error = Infallible;
+
+    async fn read(&self, reg: u8) -> Result<u8, Infallible> {
+        ScdcTransport::read(&self.0, reg).await
+    }
+
+    async fn write(&mut self, reg: u8, value: u8) -> Result<(), Infallible> {
+        ScdcTransport::write(&mut self.0, reg, value).await
+    }
+}
+
+/// Passes `future` through, requiring it to be `Send`.
+fn send<F: Send>(future: F) -> F {
+    future
+}
+
+/// Runs every operation, each future passed through `send`: generic over a
+/// `SendScdcTransport`, this compiles only if every operation's future is `Send`, so any of
+/// them can run on a multi-threaded executor.
+async fn every_operation<T: SendScdcTransport>(scdc: &mut Scdc<T>) {
+    let _ = send(scdc.read_sink_version()).await;
+    let _ = send(scdc.write_source_version(0x01)).await;
+    let _ = send(scdc.write_tmds_config(TmdsConfig {
+        scrambling_enable: true,
+        high_tmds_clock_ratio: false,
+    }))
+    .await;
+    let _ = send(scdc.read_scrambler_status()).await;
+    let _ = send(scdc.write_frl_config(FrlConfig::new(
+        FrlRate::Rate6Gbps4Lanes,
+        FfeLevels::default(),
+    )))
+    .await;
+    let _ = send(scdc.write_config_0(Config0::default())).await;
+    let _ = send(scdc.read_source_test_config()).await;
+    let _ = send(scdc.read_status_flags()).await;
+    let _ = send(scdc.read_ltp_requests()).await;
+    let _ = send(scdc.read_update_flags()).await;
+    let _ = send(scdc.clear_update_flags(ClearableUpdateFlags::default())).await;
+    let _ = send(scdc.read_ced()).await;
+    let _ = send(scdc.read_rs_correction()).await;
+}
+
+#[pollster::test]
+async fn every_operation_is_send_over_a_send_transport() {
+    let mut scdc = Scdc::new(SendSimulatedScdc(SimulatedScdc::new()));
+    every_operation(&mut scdc).await;
+    // The writes reached the registers.
+    let transport = scdc.into_transport().0;
+    assert_eq!(transport.get(0x02), 0x01);
+    assert_eq!(transport.get(0x20), 0x01);
+    assert_eq!(transport.get(0x31), 0x03);
 }

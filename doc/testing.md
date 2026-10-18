@@ -32,7 +32,10 @@ culvert's `tests/scdc.rs` made async: the client's operations through the crate 
 against `SimulatedScdc`, a 256-byte register array implementing culvert-async's
 re-exported `ScdcTransport`. Each test pre-loads register state, runs operations and checks
 both the returned values and the registers. One more test names every type and trait the
-crate root re-exports, so a re-export that goes missing fails to compile.
+crate root re-exports, so a re-export that goes missing fails to compile, and one runs
+every operation generic over a `SendScdcTransport`, passing each future through a function
+that requires `Send`, so it compiles only if every operation could run on a multi-threaded
+executor.
 
 ### `plumbob-async` feature tests
 
