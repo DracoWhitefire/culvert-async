@@ -18,9 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error (`ProtocolError::UnknownLtpReq` is removed); `UpdateFlags` decodes all `Update_0`
   flags, and `clear_update_flags` takes culvert's new `ClearableUpdateFlags` — every
   flag but `rr_test`, which the source does not clear (a provisional rule; see culvert's
-  `doc/architecture.md`) — with `UpdateFlags::clearable()` for a read-then-clear. `FrlConfig`, `FfeLevels`, `StatusFlags`, `UpdateFlags` and `LtpReq` follow
-  culvert's new definitions.
-- **`hdmi-hal-async` updated to 0.2**: `Scdc<T>`'s transport implements hdmi-hal-async
+  `doc/architecture.md`) — with `UpdateFlags::clearable()` for a read-then-clear.
+  `FrlConfig`, `FfeLevels`, `StatusFlags`, `UpdateFlags` and `LtpReq` follow culvert's new
+  definitions.
+- **`hdmi-hal-async` updated to 0.2.1**: `Scdc<T>`'s transport implements hdmi-hal-async
   0.2's `ScdcTransport`, whose `read` takes `&self` instead of `&mut self`. Transports
   must change the receiver and use interior mutability for any state changed during
   reads. The new `read_block` method has a default and needs no changes.
@@ -28,11 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   register and error types are the new culvert's, and `FrlRate` (culvert's re-export of
   display-types' `HdmiForumFrl`) is display-types 0.4's type. Code that passes a
   display-types 0.3 `HdmiForumFrl` must move to display-types 0.4.
-- **The `plumbob-async` feature implements plumbob-async's per-lane `ScdcClient`**: the
-  eight methods of plumbob's link training states (`read_flt_ready`,
+- **The `plumbob-async` feature implements plumbob-async 0.2's per-lane `ScdcClient`**:
+  the eight methods of plumbob's link training states (`read_flt_ready`,
   `read_update_flags`, `clear_update_flags`, `read_ltp_requests`,
-  `read_source_test_config`, `write_config_0_defaults`, `write_frl_config`, `read_ced`).
-  The conversions are culvert's own: the feature enables culvert's `plumbob` feature.
+  `read_source_test_config`, `write_config_0_defaults`, `write_frl_config`, `read_ced`);
+  `clear_update_flags` takes plumbob's `ClearableUpdateFlags`. The conversions are
+  culvert's own: the feature enables culvert's `plumbob` feature. The feature now
+  requires plumbob-async 0.2 (and so plumbob 0.3.1); see plumbob-async's changelog for the
+  changes code using it meets, such as `#[non_exhaustive]` outcomes and events.
 
 ### Added
 
@@ -41,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `read_rs_correction`, with the re-exports `Config0`, `SourceTestConfig`, `LtpRequests`
   and `RsCorrectionCount`.
 - End-to-end tests of plumbob-async's training through `Scdc<T>` (`tests/plumbob_async.rs`).
+- **Training through `Scdc<T>` can run on a multi-threaded executor**: over a transport
+  that implements hdmi-hal-async's `SendScdcTransport`, `Scdc<T>`'s futures are `Send`,
+  so with a `SendHdmiPhy` the training futures are `Send` in code generic over the
+  transport and the PHY. No second client type is needed for that. Code bounded by
+  plumbob-async's `SendScdcClient` instead cannot take `Scdc<T>`, which implements the
+  plain `ScdcClient`; a local wrapper type that implements `SendScdcClient` by forwarding
+  to it does.
 - **SLSA Build Level 2 provenance** — release artifacts are attested via
   `actions/attest-build-provenance` and verified with
   `gh attestation verify <file> --repo DracoWhitefire/culvert-async`.
@@ -55,7 +66,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through `display-types`) went unnoticed.
   The publish workflow runs the same build steps.
 - The client modules, their tests and the example are culvert's with `async`/`.await`;
-  culvert-async's own register address module is removed.
+  culvert-async's own register address module is removed. The plumbob-async adapter's
+  tests mirror culvert's: all seven `Update_0` flags read, each clearable flag written to
+  its own bit, and all six `Source_Test_Configuration` bits.
+- **A test checks the `Send` futures at compile time** — a function generic over
+  `SendScdcTransport` and `SendHdmiPhy` must return a `Send` future that trains through
+  `Scdc<T>`, runs LTS:L and trains again with events.
 
 ## [0.1.0] - 2026-04-05
 
