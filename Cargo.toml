@@ -1,6 +1,6 @@
 [package]
 name = "culvert-async"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Async typed access to the HDMI 2.1 SCDC register map"
