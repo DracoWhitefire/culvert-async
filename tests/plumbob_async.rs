@@ -147,17 +147,31 @@ impl Sink {
 }
 
 /// A future that is `Pending` once and wakes itself before completing, as a transport
-/// that waits on the bus would be.
-struct YieldOnce(bool);
+/// that waits on the bus would be. It counts each `Pending` it returns in `pending`, so a
+/// test can check that the executor really saw the transport wait.
+struct YieldOnce<'a> {
+    yielded: bool,
+    pending: &'a AtomicU32,
+}
 
-impl Future for YieldOnce {
+impl<'a> YieldOnce<'a> {
+    fn new(pending: &'a AtomicU32) -> Self {
+        Self {
+            yielded: false,
+            pending,
+        }
+    }
+}
+
+impl Future for YieldOnce<'_> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        if self.0 {
+        if self.yielded {
             Poll::Ready(())
         } else {
-            self.0 = true;
+            self.yielded = true;
+            self.pending.fetch_add(1, Ordering::Relaxed);
             cx.waker().wake_by_ref();
             Poll::Pending
         }
@@ -170,6 +184,7 @@ impl Future for YieldOnce {
 struct SinkTransport {
     sink: RefCell<Sink>,
     operations: Cell<u32>,
+    pending: AtomicU32,
 }
 
 impl SinkTransport {
@@ -177,6 +192,7 @@ impl SinkTransport {
         Self {
             sink: RefCell::new(sink),
             operations: Cell::new(0),
+            pending: AtomicU32::new(0),
         }
     }
 
@@ -184,7 +200,7 @@ impl SinkTransport {
         let n = self.operations.get();
         self.operations.set(n + 1);
         if n % 2 == 1 {
-            YieldOnce(false).await;
+            YieldOnce::new(&self.pending).await;
         }
     }
 }
@@ -276,7 +292,7 @@ async fn train(
     let (scdc, phy) = trainer.into_parts();
     let transport = scdc.into_transport();
     assert!(
-        transport.operations.get() > 1,
+        transport.pending.into_inner() > 0,
         "the transport waited during training"
     );
     (outcome, transport.sink.into_inner(), phy)
@@ -634,12 +650,13 @@ async fn the_ffe_maximum_is_limited_per_rate_through_culvert() {
 struct SendSinkTransport {
     sink: Mutex<Sink>,
     operations: AtomicU32,
+    pending: AtomicU32,
 }
 
 impl SendSinkTransport {
     async fn maybe_wait(&self) {
         if self.operations.fetch_add(1, Ordering::Relaxed) % 2 == 1 {
-            YieldOnce(false).await;
+            YieldOnce::new(&self.pending).await;
         }
     }
 }
@@ -725,6 +742,7 @@ async fn training_through_scdc_is_send_over_send_twins() {
     let transport = SendSinkTransport {
         sink: Mutex::new(sink),
         operations: AtomicU32::new(0),
+        pending: AtomicU32::new(0),
     };
     let mut trainer = FrlTrainer::new(Scdc::new(transport), SendPhy(Phy::default()));
     let (outcome, exited, events) = spawnable(&mut trainer, &ffe_3()).await;
@@ -738,6 +756,6 @@ async fn training_through_scdc_is_send_over_send_twins() {
     assert!(exited);
     assert!(events > 0);
     let (scdc, SendPhy(phy)) = trainer.into_parts();
-    assert!(scdc.into_transport().operations.into_inner() > 1);
+    assert!(scdc.into_transport().pending.into_inner() > 0);
     assert!(phy.rates.contains(&R12));
 }
