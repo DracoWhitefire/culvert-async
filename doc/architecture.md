@@ -292,8 +292,10 @@ The principles are culvert's:
 - **No unsafe code.** `#![forbid(unsafe_code)]`.
 - **Parity with culvert.** When culvert adds a method or register group, culvert-async
   adds its async counterpart in its next release.
-- **Attested releases.** Every release is published through a GitHub Actions workflow
-  that signs the `.crate` package with [SLSA Build Level 2](https://slsa.dev) provenance.
-  Verify with `gh attestation verify <file> --repo DracoWhitefire/culvert-async`.
+- **Attested releases.** From 0.2.0, every release is published through a GitHub Actions
+  workflow, with crates.io trusted publishing, that signs the `.crate` package with
+  [SLSA Build Level 2](https://slsa.dev) provenance. Verify with
+  `gh attestation verify <file> --repo DracoWhitefire/culvert-async`. 0.1.0 was uploaded
+  by hand, without provenance.
 
 [`culvert::codec`]: https://docs.rs/culvert/latest/culvert/codec/index.html
