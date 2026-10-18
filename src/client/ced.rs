@@ -57,6 +57,7 @@ mod tests {
     use super::super::Scdc;
     use super::super::test_transport::TestTransport;
     use crate::CedCount;
+    use crate::ScdcError;
 
     #[pollster::test]
     async fn ced_validity_bit_required() {
@@ -96,7 +97,7 @@ mod tests {
                 Scdc::new(TestTransport::failing_after(n))
                     .read_ced()
                     .await
-                    .is_err()
+                    .is_err_and(|error| matches!(error, ScdcError::Transport(())))
             );
         }
     }
@@ -128,7 +129,7 @@ mod tests {
                 Scdc::new(TestTransport::failing_after(n))
                     .read_rs_correction()
                     .await
-                    .is_err()
+                    .is_err_and(|error| matches!(error, ScdcError::Transport(())))
             );
         }
     }

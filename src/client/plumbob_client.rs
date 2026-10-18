@@ -289,22 +289,30 @@ mod tests {
             ScdcClient::read_flt_ready(&mut fails()).await,
             Err(ScdcError::Transport(()))
         ));
-        assert!(ScdcClient::read_update_flags(&mut fails()).await.is_err());
+        assert!(
+            ScdcClient::read_update_flags(&mut fails())
+                .await
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
+        );
         assert!(
             ScdcClient::clear_update_flags(&mut fails(), ClearableUpdateFlags::default())
                 .await
-                .is_err()
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
-        assert!(ScdcClient::read_ltp_requests(&mut fails()).await.is_err());
+        assert!(
+            ScdcClient::read_ltp_requests(&mut fails())
+                .await
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
+        );
         assert!(
             ScdcClient::read_source_test_config(&mut fails())
                 .await
-                .is_err()
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
         assert!(
             ScdcClient::write_config_0_defaults(&mut fails())
                 .await
-                .is_err()
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
         assert!(
             ScdcClient::write_frl_config(
@@ -312,8 +320,12 @@ mod tests {
                 FrlConfig::new(HdmiForumFrl::Rate6Gbps4Lanes, FfeLevels::default())
             )
             .await
-            .is_err()
+            .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
-        assert!(ScdcClient::read_ced(&mut fails()).await.is_err());
+        assert!(
+            ScdcClient::read_ced(&mut fails())
+                .await
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
+        );
     }
 }

@@ -27,6 +27,7 @@ impl<T: ScdcTransport> Scdc<T> {
 mod tests {
     use super::super::Scdc;
     use super::super::test_transport::TestTransport;
+    use crate::ScdcError;
 
     #[pollster::test]
     async fn read_sink_version_returns_register_value() {
@@ -48,13 +49,13 @@ mod tests {
             Scdc::new(TestTransport::failing_after(0))
                 .read_sink_version()
                 .await
-                .is_err()
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
         assert!(
             Scdc::new(TestTransport::failing_after(0))
                 .write_source_version(1)
                 .await
-                .is_err()
+                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
     }
 }
