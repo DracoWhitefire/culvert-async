@@ -26,6 +26,14 @@ concrete type avoids LLVM counting per-monomorphisation `?` branches as uncovere
 Tests run under `#[pollster::test]`, keeping the executor dependency out of the library and
 avoiding any runtime choice.
 
+### Public API tests (`tests/scdc.rs`)
+
+culvert's `tests/scdc.rs` made async: the client's operations through the crate root,
+against `SimulatedScdc`, a 256-byte register array implementing culvert-async's
+re-exported `ScdcTransport`. Each test pre-loads register state, runs operations and checks
+both the returned values and the registers. One more test names every type and trait the
+crate root re-exports, so a re-export that goes missing fails to compile.
+
 ### `plumbob-async` feature tests
 
 When compiled with `--features plumbob-async`, two more sets of tests run, both culvert's
