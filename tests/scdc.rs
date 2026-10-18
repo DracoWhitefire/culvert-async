@@ -49,18 +49,18 @@ impl ScdcTransport for SimulatedScdc {
 #[pollster::test]
 async fn read_sink_version() {
     let mut transport = SimulatedScdc::new();
-    transport.set(0x01, 0x01);
+    transport.set(0x01, 0xA5);
     let mut scdc = Scdc::new(transport);
 
-    assert_eq!(scdc.read_sink_version().await.unwrap(), 0x01);
+    assert_eq!(scdc.read_sink_version().await.unwrap(), 0xA5);
 }
 
 #[pollster::test]
 async fn write_source_version() {
     let mut scdc = Scdc::new(SimulatedScdc::new());
-    scdc.write_source_version(0x01).await.unwrap();
+    scdc.write_source_version(0x5A).await.unwrap();
 
-    assert_eq!(scdc.into_transport().get(0x02), 0x01);
+    assert_eq!(scdc.into_transport().get(0x02), 0x5A);
 }
 
 // ── scrambling ────────────────────────────────────────────────────────────────

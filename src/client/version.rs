@@ -32,15 +32,16 @@ mod tests {
     #[pollster::test]
     async fn read_sink_version_returns_register_value() {
         let mut sim = TestTransport::new();
-        sim.set(0x01, 0x01);
-        assert_eq!(Scdc::new(sim).read_sink_version().await.unwrap(), 0x01);
+        // Not 0x01 (the version a constant or a mask would also produce).
+        sim.set(0x01, 0xA5);
+        assert_eq!(Scdc::new(sim).read_sink_version().await.unwrap(), 0xA5);
     }
 
     #[pollster::test]
     async fn write_source_version_writes_register() {
         let mut scdc = Scdc::new(TestTransport::new());
-        scdc.write_source_version(0x01).await.unwrap();
-        assert_eq!(scdc.into_transport().get(0x02), 0x01);
+        scdc.write_source_version(0x5A).await.unwrap();
+        assert_eq!(scdc.into_transport().get(0x02), 0x5A);
     }
 
     #[pollster::test]
