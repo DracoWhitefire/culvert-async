@@ -20,6 +20,7 @@ use super::Scdc;
 /// cancel signal belongs there too, following plumbob's "Stopping early" rule. Not in the
 /// transport: there a wait applies to every register access, and a transport cannot tell
 /// the polled reads from LTS:L's.
+#[cfg_attr(docsrs, doc(cfg(feature = "plumbob-async")))]
 impl<T: ScdcTransport> ScdcClient for Scdc<T> {
     type Error = ScdcError<T::Error>;
 

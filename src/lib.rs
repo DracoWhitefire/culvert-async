@@ -7,7 +7,8 @@
 //!
 //! All register types and error types are re-exported from `culvert` so that callers do not
 //! need to depend on both crates, and the transport trait and its `Send` twin from
-//! `hdmi-hal-async`.
+//! `hdmi-hal-async`. culvert's I/O-free encoders and decoders, [`culvert::codec`], are not
+//! re-exported: code that needs them depends on culvert.
 //!
 //! # Features
 //!
@@ -15,6 +16,7 @@
 //!   culvert-async to the async FRL link training state machine.
 
 #![no_std]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
