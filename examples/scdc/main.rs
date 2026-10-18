@@ -2,7 +2,7 @@
 //!
 //! A `SimulatedScdc` backed by a 256-byte register array stands in for the
 //! DDC/I²C link to a physical sink. Registers are pre-loaded with a plausible
-//! 6 Gbps 3-lane FRL sink state and the example walks through the full read
+//! 6 Gbps 3-lane FRL sink state and the example walks through the main read
 //! and write paths.
 
 use core::convert::Infallible;

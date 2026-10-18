@@ -169,3 +169,6 @@ The attested `.crate` is attached to each
 ## License
 
 Licensed under the [Mozilla Public License 2.0](LICENSE).
+
+[`culvert`]: https://crates.io/crates/culvert
+[`hdmi_hal_async::scdc::ScdcTransport`]: https://docs.rs/hdmi-hal-async/latest/hdmi_hal_async/scdc/trait.ScdcTransport.html

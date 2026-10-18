@@ -269,8 +269,8 @@ impl<T: SendScdcTransport> SendScdcClient for SendScdc<T> {
 ```
 
 culvert-async does not ship that wrapper yet; it will when a consumer generic over
-`SendScdcClient` needs it (recorded in the stack design document, "Sync and Async
-Companions").
+`SendScdcClient` needs it, or when return-type notation is decided against (see
+`doc/roadmap.md`; recorded in the stack design document, "Sync and Async Companions").
 
 ---
 

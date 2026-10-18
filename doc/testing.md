@@ -19,9 +19,13 @@ They use `TestTransport`, an async 256-byte register array transport defined in
 - `TestTransport::new()` — succeeds on all operations; used for happy-path tests.
 - `TestTransport::failing_after(n)` — succeeds for the first `n` operations then returns
   `Err(())`; used to exercise every `?` error branch.
+- `TestTransport::log()` — the first 16 operations, in order, so a test can pin which
+  registers a method reads and writes, in what order and how often.
 
-The single generic instantiation (`Scdc<TestTransport>`) is intentional: using one
-concrete type avoids LLVM counting per-monomorphisation `?` branches as uncovered.
+The unit tests use a single instantiation (`Scdc<TestTransport>`) on purpose: one
+concrete type avoids LLVM counting per-monomorphisation `?` branches as uncovered. The
+integration tests in `tests/` add their own transports, which the coverage run includes;
+their `?` error branches are covered by the unit tests' instantiation.
 
 Tests run under `#[pollster::test]`, keeping the executor dependency out of the library and
 avoiding any runtime choice.
