@@ -298,7 +298,10 @@ async fn trains_through_scdc() {
 
     assert!(matches!(
         outcome,
-        TrainingOutcome::Success { achieved_rate: R12 }
+        TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        }
     ));
     // Config_0 cleared; Config_1 = 12 Gbps (6) with FFE levels 3 in bits 7:4.
     assert_eq!(sink.regs[CONFIG_0 as usize], 0x00);
@@ -337,7 +340,10 @@ async fn steps_down_when_the_sink_asks_for_a_lower_rate() {
 
     assert!(matches!(
         outcome,
-        TrainingOutcome::Success { achieved_rate: R10 }
+        TrainingOutcome::Success {
+            achieved_rate: R10,
+            ..
+        }
     ));
     // Config_1: 12 Gbps (6), then 10 Gbps (5), both with FFE levels 3.
     assert_eq!(sink.config_1_writes, [0x36, 0x35]);
@@ -357,7 +363,8 @@ async fn a_timeout_returns_the_sink_to_tmds() {
     assert!(matches!(
         outcome,
         TrainingOutcome::FallbackRequired {
-            reason: FallbackReason::TrainingTimeout
+            reason: FallbackReason::TrainingTimeout,
+            ..
         }
     ));
     // Config_1 written with 12 Gbps, then with FRL off.
@@ -376,7 +383,8 @@ async fn rates_exhausted_clears_the_pending_flt_update() {
     assert!(matches!(
         outcome,
         TrainingOutcome::FallbackRequired {
-            reason: FallbackReason::RatesExhausted
+            reason: FallbackReason::RatesExhausted,
+            ..
         }
     ));
     assert_eq!(sink.config_1_writes, [0x36, 0x00]);
@@ -400,7 +408,10 @@ async fn flt_no_timeout_from_source_test_configuration() {
     // FLT_ready arrives after the normal limit, which FLT_no_timeout suspends.
     assert!(matches!(
         outcome,
-        TrainingOutcome::Success { achieved_rate: R12 }
+        TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        }
     ));
     assert_eq!(sink.regs[UPDATE_0 as usize] & SOURCE_TEST_UPDATE, 0);
 }
@@ -425,16 +436,23 @@ async fn an_undefined_request_is_ignored_and_reported() {
 
     let (outcome, warnings) = train_with_warnings(sink, &[R12]).await;
 
-    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
-    assert_eq!(
-        warnings,
+    assert!(matches!(
+        outcome,
+        TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        }
+    ));
+    assert!(matches!(
+        warnings.as_slice(),
         [TrainingWarning::UndefinedLtpRequest {
             lane: 1,
             value: 0x9,
             count: 1,
             in_use: true,
+            ..
         }]
-    );
+    ));
 }
 
 #[pollster::test]
@@ -452,21 +470,20 @@ async fn a_three_lane_link_ignores_an_undefined_lane_3_nibble() {
 
     let (outcome, warnings) = train_with_warnings(sink, &[rate]).await;
 
-    assert_eq!(
+    assert!(matches!(
         outcome,
-        TrainingOutcome::Success {
-            achieved_rate: rate
-        }
-    );
-    assert_eq!(
-        warnings,
+        TrainingOutcome::Success { achieved_rate, .. } if achieved_rate == rate
+    ));
+    assert!(matches!(
+        warnings.as_slice(),
         [TrainingWarning::UndefinedLtpRequest {
             lane: 3,
             value: 0x9,
             count: 2,
             in_use: false,
+            ..
         }]
-    );
+    ));
 }
 
 #[pollster::test]
@@ -491,7 +508,13 @@ async fn frl_start_together_with_flt_update_retrains() {
         .outcome;
     let (scdc, phy) = trainer.into_parts();
     let sink = scdc.into_transport().sink.into_inner();
-    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert!(matches!(
+        outcome,
+        TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        }
+    ));
     assert!(events.contains(&TrainingEvent::FrlStartWithRetrain));
     assert_eq!(
         sink.regs[UPDATE_0 as usize], 0,
@@ -521,7 +544,8 @@ async fn an_io_error_mid_training_exits_to_tmds() {
             result,
             Err(TrainingError::Scdc {
                 error: ScdcError::Transport(Nack),
-                exit: TmdsExit::Exited
+                exit: TmdsExit::Exited,
+                ..
             })
         ),
         "{result:?}"
@@ -546,7 +570,13 @@ async fn a_retrain_resumes_from_no_pattern_at_register_level() {
     ];
     sink.frl_start_after = Some(0);
     let (outcome, sink, phy) = train(sink, &[R12], &ffe_3()).await;
-    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert!(matches!(
+        outcome,
+        TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        }
+    ));
     assert_eq!(sink.regs[UPDATE_0 as usize], 0);
     assert!(phy.patterns.contains(&LanePatterns {
         lane0: Some(LtpPattern::Lfsr1),
@@ -565,7 +595,13 @@ async fn update_0_flags_plumbob_does_not_handle_are_left_set() {
     sink.rounds = vec![round(0, [0x5; 4]), round(0, [0x0; 4])];
     sink.frl_start_after = Some(0);
     let (outcome, sink, _) = train(sink, &[R12], &ffe_3()).await;
-    assert_eq!(outcome, TrainingOutcome::Success { achieved_rate: R12 });
+    assert!(matches!(
+        outcome,
+        TrainingOutcome::Success {
+            achieved_rate: R12,
+            ..
+        }
+    ));
     assert_eq!(sink.regs[UPDATE_0 as usize], 0x47);
 }
 
@@ -580,12 +616,10 @@ async fn the_ffe_maximum_is_limited_per_rate_through_culvert() {
         let mut config = TrainingConfig::default();
         config.ffe_levels = FfeLevels::MAX;
         let (outcome, sink, _) = train(sink, &[rate], &config).await;
-        assert_eq!(
+        assert!(matches!(
             outcome,
-            TrainingOutcome::Success {
-                achieved_rate: rate
-            }
-        );
+            TrainingOutcome::Success { achieved_rate, .. } if achieved_rate == rate
+        ));
         assert_eq!(sink.config_1_writes, [config_1]);
     }
 }
