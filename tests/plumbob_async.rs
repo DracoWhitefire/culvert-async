@@ -61,6 +61,10 @@ struct Sink {
     update_polls: u32,
     /// Every value written to `Config_1`, in order.
     config_1_writes: Vec<u8>,
+    /// When LTS:L writes `Config_1` without an FRL rate, start the rounds again and
+    /// raise `FRL_start` after this many polls once they are used up, so the next
+    /// attempt can train too.
+    rearm: Option<u32>,
     /// The next read of this register fails (a DDC NACK), once.
     nack_read_of: Option<u8>,
 }
@@ -78,6 +82,7 @@ impl Sink {
             configured: false,
             update_polls: 0,
             config_1_writes: Vec::new(),
+            rearm: None,
             nack_read_of: None,
         }
     }
@@ -138,6 +143,10 @@ impl Sink {
             CONFIG_1 => {
                 self.config_1_writes.push(value);
                 self.configured = value & 0x0F != 0;
+                if let (false, Some(after)) = (self.configured, self.rearm) {
+                    self.next_round = 0;
+                    self.frl_start_after = Some(after);
+                }
                 self.update_polls = 0;
                 self.regs[CONFIG_1 as usize] = value;
             }
@@ -703,23 +712,33 @@ impl SendHdmiPhy for SendPhy {
     }
 }
 
-/// Trains, exits and trains again with events: the outcome of the first attempt, whether
-/// LTS:L succeeded, and how many events the second attempt reported.
+/// What [`train_exit_train`] saw: the first attempt's outcome, whether LTS:L succeeded,
+/// and the second attempt's outcome with the number of events it reported.
+type Attempts = (
+    Option<TrainingOutcome>,
+    bool,
+    Option<TrainingOutcome>,
+    usize,
+);
+
+/// Trains, exits and trains again with events.
 async fn train_exit_train<T: ScdcTransport, P: HdmiPhy>(
     trainer: &mut FrlTrainer<Scdc<T>, P>,
     config: &TrainingConfig,
-) -> (Option<TrainingOutcome>, bool, usize) {
-    let outcome = trainer
+) -> Attempts {
+    let first = trainer
         .train(&[R12], config)
         .await
         .ok()
         .map(|trained| trained.outcome);
     let exited = trainer.exit_to_tmds().await.is_ok();
     let mut events = 0;
-    let _ = trainer
+    let second = trainer
         .train_with_events(&[R12], config, &mut |_| events += 1)
-        .await;
-    (outcome, exited, events)
+        .await
+        .ok()
+        .map(|trained| trained.outcome);
+    (first, exited, second, events)
 }
 
 /// [`train_exit_train`] through the plain `Scdc<T>`, generic over the transport's and the
@@ -729,7 +748,7 @@ async fn train_exit_train<T: ScdcTransport, P: HdmiPhy>(
 fn spawnable<'a, T: SendScdcTransport, P: SendHdmiPhy>(
     trainer: &'a mut FrlTrainer<Scdc<T>, P>,
     config: &'a TrainingConfig,
-) -> impl Future<Output = (Option<TrainingOutcome>, bool, usize)> + Send + 'a {
+) -> impl Future<Output = Attempts> + Send + 'a {
     train_exit_train(trainer, config)
 }
 
@@ -739,20 +758,23 @@ async fn training_through_scdc_is_send_over_send_twins() {
     sink.flt_ready_after = Some(0);
     sink.rounds = vec![round(0, [0x0; 4])];
     sink.frl_start_after = Some(0);
+    sink.rearm = Some(0);
     let transport = SendSinkTransport {
         sink: Mutex::new(sink),
         operations: AtomicU32::new(0),
         pending: AtomicU32::new(0),
     };
     let mut trainer = FrlTrainer::new(Scdc::new(transport), SendPhy(Phy::default()));
-    let (outcome, exited, events) = spawnable(&mut trainer, &ffe_3()).await;
-    assert!(matches!(
-        outcome,
-        Some(TrainingOutcome::Success {
-            achieved_rate: R12,
-            ..
-        })
-    ));
+    let (first, exited, second, events) = spawnable(&mut trainer, &ffe_3()).await;
+    for outcome in [first, second] {
+        assert!(matches!(
+            outcome,
+            Some(TrainingOutcome::Success {
+                achieved_rate: R12,
+                ..
+            })
+        ));
+    }
     assert!(exited);
     assert!(events > 0);
     let (scdc, SendPhy(phy)) = trainer.into_parts();
