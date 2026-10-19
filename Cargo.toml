@@ -7,8 +7,9 @@ description = "Async typed access to the HDMI 2.1 SCDC register map"
 readme = "README.md"
 license = "MPL-2.0"
 repository = "https://github.com/DracoWhitefire/culvert-async"
-keywords = ["hdmi", "scdc", "frl", "embedded", "no-std"]
-categories = ["hardware-support", "embedded", "no-std", "asynchronous"]
+homepage = "https://ashlar-display.org"
+keywords = ["ashlar", "hdmi", "no-std", "scdc", "async"]
+categories = ["hardware-support", "embedded", "no-std", "no-std::no-alloc", "asynchronous"]
 
 [package.metadata.docs.rs]
 all-features = true
