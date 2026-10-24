@@ -16,7 +16,7 @@ use super::Scdc;
 /// `Scdc` does not wait between calls. plumbob's state machine polls `read_flt_ready` and
 /// `read_update_flags` in a loop whose limits assume one poll every 2 ms by default; await
 /// that interval inside those two methods, in an `ScdcClient` of your own that wraps
-/// `Scdc<T>` and forwards the other six (`doc/architecture.md` shows one). A deadline or
+/// `Scdc<T>` and forwards the other five (`doc/architecture.md` shows one). A deadline or
 /// cancel signal belongs there too, following plumbob's "Stopping early" rule. Not in the
 /// transport: there a wait applies to every register access, and a transport cannot tell
 /// the polled reads from LTS:L's.
@@ -58,10 +58,6 @@ impl<T: ScdcTransport> ScdcClient for Scdc<T> {
         config: plumbob_async::FrlConfig,
     ) -> Result<(), Self::Error> {
         Scdc::write_frl_config(self, config.into()).await
-    }
-
-    async fn read_ced(&mut self) -> Result<plumbob_async::CedCounters, Self::Error> {
-        Scdc::read_ced(self).await.map(Into::into)
     }
 }
 
@@ -260,27 +256,6 @@ mod tests {
         ));
     }
 
-    // --- read_ced: ERR_DET, validity bit 7 of each high byte
-
-    #[pollster::test]
-    async fn read_ced_maps_each_lane() {
-        let mut scdc = scdc_with(&[
-            (0x50, 0x34),
-            (0x51, 0x92),
-            (0x52, 0x01),
-            (0x53, 0x00),
-            (0x54, 0xFF),
-            (0x55, 0xFF),
-            (0x57, 0x00),
-            (0x58, 0x80),
-        ]);
-        let ced = ScdcClient::read_ced(&mut scdc).await.unwrap();
-        assert_eq!(ced.lane0.map(|c| c.value()), Some(0x1234));
-        assert_eq!(ced.lane1, None);
-        assert_eq!(ced.lane2.map(|c| c.value()), Some(0x7FFF));
-        assert_eq!(ced.lane3.map(|c| c.value()), Some(0));
-    }
-
     // --- transport errors
 
     #[pollster::test]
@@ -322,11 +297,6 @@ mod tests {
             )
             .await
             .is_err_and(|error| matches!(error, ScdcError::Transport(())))
-        );
-        assert!(
-            ScdcClient::read_ced(&mut fails())
-                .await
-                .is_err_and(|error| matches!(error, ScdcError::Transport(())))
         );
     }
 }

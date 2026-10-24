@@ -7,9 +7,10 @@
 
 use core::convert::Infallible;
 use culvert_async::{
-    ClearableUpdateFlags, Config0, FfeLevels, FrlConfig, FrlRate, LtpReq, Scdc, ScdcTransport,
-    SendScdcTransport, TmdsConfig,
+    CedLanes, ClearableUpdateFlags, Config0, FfeLevels, FrlConfig, FrlRate, LtpReq, Scdc,
+    ScdcTransport, SendScdcTransport, TmdsConfig,
 };
+use hdmi_hal_async::scdc::read_block_bytewise;
 
 // ── simulated transport ───────────────────────────────────────────────────────
 
@@ -41,6 +42,11 @@ impl ScdcTransport for SimulatedScdc {
     async fn write(&mut self, reg: u8, value: u8) -> Result<(), Infallible> {
         self.regs[reg as usize] = value;
         Ok(())
+    }
+
+    async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Infallible> {
+        // A register array has no bus transaction to read in one go: one `read` per byte.
+        read_block_bytewise(self, reg, buf).await
     }
 }
 
@@ -229,25 +235,30 @@ async fn read_ced_decodes_valid_and_invalid_lanes() {
     // Lane 2: valid, count = 0x7FFF (max)
     transport.set(0x54, 0xFF); // l2
     transport.set(0x55, 0xFF); // h2: valid + all counter bits set
-    // CED checksum sits between lane 2 and lane 3.
-    transport.set(0x56, 0x80);
+    // CED checksum sits between lane 2 and lane 3: 0x50–0x56 sum to zero.
+    transport.set(0x56, 0x4E);
     // Lane 3: validity bit not set → None
     transport.set(0x57, 0x00);
     transport.set(0x58, 0x00);
     let mut scdc = Scdc::new(transport);
 
-    let ced = scdc.read_ced().await.unwrap();
+    let reading = scdc.read_ced(CedLanes::Three).await.unwrap();
 
+    let ced = reading.counters;
     assert_eq!(ced.lane0.map(|c| c.value()), Some(0x0134));
     assert_eq!(ced.lane1, None);
     assert_eq!(ced.lane2.map(|c| c.value()), Some(0x7FFF));
     assert_eq!(ced.lane3, None);
+    assert_eq!(reading.warnings(), []);
 }
 
 #[pollster::test]
 async fn read_ced_all_invalid() {
     let mut scdc = Scdc::new(SimulatedScdc::new());
-    let ced = scdc.read_ced().await.unwrap();
+    let reading = scdc.read_ced(CedLanes::Four).await.unwrap();
+    // All zero: no counts, and a valid checksum.
+    assert_eq!(reading.warnings(), []);
+    let ced = reading.counters;
     assert!(ced.lane0.is_none());
     assert!(ced.lane1.is_none());
     assert!(ced.lane2.is_none());
@@ -261,6 +272,9 @@ async fn every_type_is_re_exported_at_the_crate_root() {
     // Each line names one re-export, so removing or hiding one fails to compile.
     let _: Option<culvert_async::CedCount> = None;
     let _: Option<culvert_async::CedCounters> = None;
+    let _: Option<culvert_async::CedLanes> = None;
+    let _: Option<culvert_async::CedReading> = None;
+    let _: Option<culvert_async::CedWarning> = None;
     let _: Option<culvert_async::ClearableUpdateFlags> = None;
     let _: Option<culvert_async::Config0> = None;
     let _: Option<culvert_async::FfeLevels> = None;
@@ -295,6 +309,10 @@ impl SendScdcTransport for SendSimulatedScdc {
     async fn write(&mut self, reg: u8, value: u8) -> Result<(), Infallible> {
         ScdcTransport::write(&mut self.0, reg, value).await
     }
+
+    async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Infallible> {
+        ScdcTransport::read_block(&self.0, reg, buf).await
+    }
 }
 
 /// Passes `future` through, requiring it to be `Send`.
@@ -325,7 +343,7 @@ async fn every_operation<T: SendScdcTransport>(scdc: &mut Scdc<T>) {
     let _ = send(scdc.read_ltp_requests()).await;
     let _ = send(scdc.read_update_flags()).await;
     let _ = send(scdc.clear_update_flags(ClearableUpdateFlags::default())).await;
-    let _ = send(scdc.read_ced()).await;
+    let _ = send(scdc.read_ced(CedLanes::Three)).await;
     let _ = send(scdc.read_rs_correction()).await;
 }
 

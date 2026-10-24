@@ -18,7 +18,7 @@ use std::sync::Mutex;
 use culvert_async::{Scdc, ScdcError};
 use display_types::cea861::hdmi_forum::HdmiForumFrl;
 use hdmi_hal_async::phy::{HdmiPhy, SendHdmiPhy};
-use hdmi_hal_async::scdc::{ScdcTransport, SendScdcTransport};
+use hdmi_hal_async::scdc::{ScdcTransport, SendScdcTransport, read_block_bytewise};
 use hdmi_hal_async::{EqParams, FrlOutput, LanePatterns, LtpPattern};
 use plumbob_async::{
     FallbackReason, FfeLevels, FrlTrainer, TmdsExit, TrainingConfig, TrainingError, TrainingEvent,
@@ -235,6 +235,11 @@ impl ScdcTransport for SinkTransport {
         self.maybe_wait().await;
         self.sink.get_mut().write(reg, value);
         Ok(())
+    }
+
+    async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Nack> {
+        // One `read` per byte, as the scripted sink answers each register on its own.
+        read_block_bytewise(self, reg, buf).await
     }
 }
 
@@ -683,6 +688,11 @@ impl SendScdcTransport for SendSinkTransport {
         self.maybe_wait().await;
         self.sink.get_mut().unwrap().write(reg, value);
         Ok(())
+    }
+
+    async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Nack> {
+        // One `read` per byte, as the scripted sink answers each register on its own.
+        read_block_bytewise(self, reg, buf).await
     }
 }
 

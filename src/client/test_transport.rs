@@ -15,6 +15,8 @@ const LOG_LEN: usize = 16;
 pub enum Op {
     Read(u8),
     Write(u8, u8),
+    /// One `read_block`: the first register and the length, one transaction.
+    ReadBlock(u8, usize),
 }
 
 /// Async in-memory transport that succeeds for the first `fail_after` operations
@@ -90,6 +92,25 @@ impl ScdcTransport for TestTransport {
         self.regs[reg as usize] = value;
         Ok(())
     }
+
+    /// One operation, as one transaction: `fail_after` counts it once, and the log holds
+    /// one `Op::ReadBlock`. An empty buffer is no bus activity: nothing is counted or
+    /// logged. Past 0xFF, the register address wraps (the contract leaves it unspecified).
+    async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), ()> {
+        if buf.is_empty() {
+            return Ok(());
+        }
+        if self.ops.get() >= self.fail_after {
+            return Err(());
+        }
+        self.record(Op::ReadBlock(reg, buf.len()));
+        let mut addr = reg;
+        for byte in buf {
+            *byte = self.regs[addr as usize];
+            addr = addr.wrapping_add(1);
+        }
+        Ok(())
+    }
 }
 
 #[pollster::test]
@@ -101,4 +122,41 @@ async fn the_log_keeps_the_first_operations() {
     let log = transport.log();
     assert_eq!(log[0], Some(Op::Read(0)));
     assert_eq!(log[LOG_LEN - 1], Some(Op::Read(LOG_LEN as u8 - 1)));
+}
+
+#[pollster::test]
+async fn a_block_read_is_one_operation() {
+    let mut transport = TestTransport::new();
+    transport.set(0x50, 0x11);
+    transport.set(0x51, 0x22);
+    let mut buf = [0; 2];
+    transport.read_block(0x50, &mut buf).await.unwrap();
+    assert_eq!(buf, [0x11, 0x22]);
+    assert_eq!(transport.log()[..2], [Some(Op::ReadBlock(0x50, 2)), None]);
+}
+
+#[pollster::test]
+async fn a_block_read_counts_once_towards_failing_after() {
+    let transport = TestTransport::failing_after(1);
+    let mut buf = [0; 9];
+    transport.read_block(0x50, &mut buf).await.unwrap();
+    assert_eq!(transport.read_block(0x50, &mut buf).await, Err(()));
+    assert_eq!(transport.read(0x50).await, Err(()));
+}
+
+#[pollster::test]
+async fn an_empty_block_read_is_no_operation() {
+    let transport = TestTransport::failing_after(0);
+    assert_eq!(transport.read_block(0x50, &mut []).await, Ok(()));
+    assert_eq!(transport.log()[0], None);
+}
+
+#[pollster::test]
+async fn a_block_read_wraps_past_0xff() {
+    let mut transport = TestTransport::new();
+    transport.set(0xFF, 0xAA);
+    transport.set(0x00, 0xBB);
+    let mut buf = [0; 2];
+    transport.read_block(0xFF, &mut buf).await.unwrap();
+    assert_eq!(buf, [0xAA, 0xBB]);
 }
