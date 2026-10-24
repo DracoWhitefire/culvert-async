@@ -20,7 +20,9 @@ They use `TestTransport`, an async 256-byte register array transport defined in
 - `TestTransport::failing_after(n)` — succeeds for the first `n` operations then returns
   `Err(())`; used to exercise every `?` error branch.
 - `TestTransport::log()` — the first 16 operations, in order, so a test can pin which
-  registers a method reads and writes, in what order and how often.
+  registers a method reads and writes, in what order and how often. A `read_block` is one
+  `Op::ReadBlock(reg, len)`, counted once by `failing_after` (an empty one not at all), so
+  a test pins each multi-register method to one transaction.
 
 The unit tests use a single instantiation (`Scdc<TestTransport>`) on purpose: one
 concrete type avoids LLVM counting per-monomorphisation `?` branches as uncovered. The
@@ -41,6 +43,19 @@ every operation generic over a `SendScdcTransport`, passing each future through 
 that requires `Send`, so it compiles only if every operation could run on a multi-threaded
 executor.
 
+### Torn reads (`tests/torn_reads.rs`)
+
+culvert's regression tests for the torn CED read (review B13 of the FRL rework), made
+async: a sink whose lane 0 counter ticks while it is read, with a checksum kept correct for
+its current value. Read one register at a time, 0x00FF ticking to 0x0100 reads back as
+0x01FF with a `ChecksumMismatch`; read as one block, during which the sink holds its
+registers still, it is 0x00FF with no warning; a sweep over starting counts shows a
+counter ticking between bytes never passes the checksum.
+
+The CED unit tests (`src/client/ced.rs`) match `CedWarning`s by their fields rather than
+building them: the variants are `#[non_exhaustive]`, so outside culvert they can be
+matched but not constructed, as a caller meets them.
+
 ### `plumbob-async` feature tests
 
 When compiled with `--features plumbob-async`, two more sets of tests run, both culvert's
@@ -50,7 +65,7 @@ When compiled with `--features plumbob-async`, two more sets of tests run, both 
   `plumbob_async::ScdcClient` trait and assert on register bits: all seven `Update_0`
   flags, every request value (and 0x9 passed on as `LtpReq::Reserved`), all six
   `Source_Test_Configuration` bits, each flag clear writing only its own bit, `Config_1`
-  encoding, culvert's FFE-levels check, CED validity bits, and transport errors.
+  encoding, culvert's FFE-levels check, and transport errors.
 - **End-to-end tests** (`tests/plumbob_async.rs`) run plumbob-async's `FrlTrainer`
   through `Scdc<T>` against a sink simulated at the register level: a full training run,
   a rate drop, a timeout and exhausted rates ending in TMDS, `FLT_no_timeout`, an

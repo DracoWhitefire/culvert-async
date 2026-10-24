@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`read_ced` takes the link's lane count and returns a `CedReading`**, as in culvert:
+  `read_ced(lanes: CedLanes) -> Result<CedReading, ScdcError<_>>`. It reads the CED block
+  (0x50–0x58) with one `read_block` and checks the checksum at 0x56 (`culvert::codec::
+  decode_ced_block`). Read byte by byte, a counter the sink updated between its two bytes
+  could read back as a value it never held, and nothing said so. A mismatch is a
+  `CedWarning` next to the counters, not an error. Migration:
+  `read_ced(CedLanes::from(rate))` (TMDS: `CedLanes::Three`) and `reading.counters`.
+- **With the `plumbob-async` feature, `Scdc<T>` no longer implements a `read_ced`**:
+  plumbob-async's `ScdcClient` no longer has one. Read CED from `Scdc<T>` directly.
+- **Every `ScdcTransport` must implement `read_block`**: culvert-async requires the
+  hdmi-hal-async release where it is required. A transport that cannot read a block in one
+  transaction implements it with `hdmi_hal_async::scdc::read_block_bytewise`.
+- **culvert, plumbob-async, hdmi-hal-async** move to their releases with these changes;
+  the types re-exported from them change with them.
+
+### Added
+
+- **`CedLanes`, `CedReading` and `CedWarning`**, re-exported from culvert.
+- **Cancellation, method by method**, in `Scdc`'s documentation: stop between calls rather
+  than dropping a future mid-flight; after a dropped call, whole-register writes are safe
+  to repeat, a repeated `clear_update_flags` can clear a flag the sink set again (harmless
+  for `CED_Update` / `RSED_Update`, not for `FLT_Update` or `FRL_Start`: read `Update_0`
+  again), and reads are repeated, except the error counters, which a sink may clear on
+  read.
+
 ### Changed
+
+- **`read_ltp_requests` and `read_rs_correction` read their two registers with one
+  `read_block`**, as in culvert.
+- **The CED and RS counters' documentation says how they behave**, as culvert's does
+  (saturation at 0x7FFF, clear on read possible, resets, `CED_Update` / `RSED_Update`
+  meaning errors are occurring).
 
 - **Part of Ashlar** — the README now opens with a block naming the
   [Ashlar](https://ashlar-display.org) stack and linking the other crates in it. Keywords

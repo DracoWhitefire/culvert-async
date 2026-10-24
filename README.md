@@ -39,7 +39,7 @@ cargo add culvert-async
 Wrap your async transport in `Scdc` and await typed methods:
 
 ```rust
-use culvert_async::{ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
+use culvert_async::{CedLanes, ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
 
 let mut scdc = Scdc::new(transport);
 
@@ -72,12 +72,18 @@ if updates.flt_update {
     }
 }
 
-// Read per-lane character error counts
-let ced = scdc.read_ced().await?;
-if let Some(count) = ced.lane0 {
+// Read per-lane character error counts, the CED block in one read, checksum checked
+let reading = scdc.read_ced(CedLanes::from(FrlRate::Rate12Gbps4Lanes)).await?;
+for warning in reading.iter_warnings() {
+    // e.g. a checksum mismatch: the counts may be torn; read again or distrust them
+}
+if let Some(count) = reading.counters.lane0 {
     // lane 0 has a valid error count
 }
 ```
+
+To stop early, check a deadline before each call rather than dropping a future in flight;
+`Scdc`'s documentation says what a dropped call may have done, method by method.
 
 To use `culvert-async` as the SCDC backend for `plumbob-async`'s link training state
 machine, enable the `plumbob-async` feature:
@@ -108,7 +114,7 @@ poll interval and a deadline belong (not in the transport).
 | Source test configuration | 0x35        | `read_source_test_config` |
 | Status flags              | 0x40        | `read_status_flags` |
 | LTP requests              | 0x41–0x42   | `read_ltp_requests` |
-| Character Error Detection | 0x50–0x55, 0x57–0x58 | `read_ced` |
+| Character Error Detection | 0x50–0x58 (checksum at 0x56) | `read_ced` |
 | RS correction count       | 0x59–0x5A   | `read_rs_correction` |
 
 The register map is culvert's (`culvert::codec`); its sources are described in culvert's

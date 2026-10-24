@@ -32,11 +32,13 @@ culvert-async covers:
   - update flags: `read_update_flags`, `clear_update_flags`,
   - FRL configuration and training: `write_config_0`, `write_frl_config`,
     `read_source_test_config`, `read_status_flags`, `read_ltp_requests`,
-  - error counters: `read_ced`, `read_rs_correction`,
+  - error counters: `read_ced` (the CED block in one read, checksum checked),
+    `read_rs_correction`,
 - re-exports of culvert's public types (`ScdcError`, `ProtocolError`, `TmdsConfig`,
   `ScramblerStatus`, `Config0`, `FrlConfig`, `FfeLevels`, `FrlRate`, `SourceTestConfig`,
   `StatusFlags`, `LtpReq`, `LtpRequests`, `UpdateFlags`, `ClearableUpdateFlags`,
-  `CedCount`, `CedCounters`, `RsCorrectionCount`), and of hdmi-hal-async's
+  `CedCount`, `CedCounters`, `CedLanes`, `CedReading`, `CedWarning`, `RsCorrectionCount`),
+  and of hdmi-hal-async's
   `ScdcTransport`, the bound on `Scdc<T>`,
 - the `plumbob_async::ScdcClient` implementation for `Scdc<T>`, behind the `plumbob-async`
   cargo feature.
@@ -83,7 +85,7 @@ impl<T: hdmi_hal_async::scdc::ScdcTransport> Scdc<T> {
     pub async fn read_sink_version(&mut self) -> Result<u8, ScdcError<T::Error>>;
     pub async fn write_frl_config(&mut self, config: FrlConfig) -> Result<(), ScdcError<T::Error>>;
     pub async fn read_ltp_requests(&mut self) -> Result<LtpRequests, ScdcError<T::Error>>;
-    pub async fn read_ced(&mut self) -> Result<CedCounters, ScdcError<T::Error>>;
+    pub async fn read_ced(&mut self, lanes: CedLanes) -> Result<CedReading, ScdcError<T::Error>>;
     // … one async method per culvert method
 }
 ```
@@ -92,14 +94,23 @@ Each method reads or writes the registers `culvert::codec` names and converts wi
 matching `codec` function:
 
 ```rust
-pub async fn read_ced(&mut self) -> Result<CedCounters, ScdcError<T::Error>> {
-    let mut bytes = [0; 8];
-    for (byte, reg) in bytes.iter_mut().zip(codec::CED_REGISTERS) {
-        *byte = self.transport.read(reg).await.map_err(ScdcError::Transport)?;
-    }
-    Ok(codec::decode_ced(bytes))
+pub async fn read_ced(&mut self, lanes: CedLanes) -> Result<CedReading, ScdcError<T::Error>> {
+    let mut block = [0; codec::CED_BLOCK_LEN];
+    self.transport
+        .read_block(codec::CED_BLOCK_START, &mut block)
+        .await
+        .map_err(ScdcError::Transport)?;
+    Ok(codec::decode_ced_block(&block, lanes))
 }
 ```
+
+The three multi-register reads — `read_ltp_requests` (0x41–0x42), `read_ced` (0x50–0x58)
+and `read_rs_correction` (0x59–0x5A) — are each one `read_block`, so on a transport that
+reads a block in one transaction a sink update cannot fall between their registers. The
+CED checksum is checked by `decode_ced_block`, which returns the counters with a
+`CedWarning` when it fails rather than an error; culvert's `doc/architecture.md`
+("Character Error Detection", "Error Handling") records the coverage, its sources, how
+the counters behave and why a mismatch is a warning.
 
 The semantics of every method are culvert's; the only difference is that register
 accesses yield to the executor rather than blocking.
@@ -148,7 +159,7 @@ impl<T: ScdcTransport> ScdcClient for Paced<T> {
         ScdcClient::read_update_flags(&mut self.0).await
     }
 
-    // … the other six methods forward without waiting
+    // … the other five methods forward without waiting
 }
 ```
 
@@ -242,11 +253,26 @@ Both twins are re-exported where the code needs them: `SendScdcTransport` from
 culvert-async, `SendHdmiPhy` from plumbob-async. `train_with_events` is `Send` too when its
 callback is.
 
-**Cancellation.** Every method performs at most one write and keeps no state between
-calls, so a dropped future leaves `Scdc<T>` usable (plumbob-async's `exit_to_tmds` then
-returns a dropped training attempt to TMDS). The multi-register reads, `read_ced` and
-`read_rs_correction`, read one register at a time and can tear; their documentation says
-so.
+**Cancellation.** The first rule is hdmi-hal-async's: stop between calls (check a
+deadline before each one) rather than dropping a future mid-flight, so no transaction is
+cut short whatever the transport does. When a future is dropped anyway, `Scdc<T>` stays
+usable — every method performs at most one transport call and keeps no state between
+calls — and the transport says what a cancelled transfer leaves behind (hdmi-hal-async's
+`ScdcTransport`, "Cancellation"; plumbob-async's `exit_to_tmds` then returns a dropped
+training attempt to TMDS). What the dropped call did is unknown; `Scdc<T>`'s
+documentation says, method by method, what to do about it:
+
+- whole-register writes (`Source_Version`, `TMDS_Config`, `Config_0`, `Config_1`) are
+  safe to repeat;
+- `clear_update_flags` is write-1-to-clear: repeating it can clear a flag the sink set
+  again meanwhile, harmless for `CED_Update` / `RSED_Update` (re-evaluated about once a
+  second), not for `FLT_Update` or `FRL_Start`, so read `Update_0` again and clear only
+  what is set;
+- reads are repeated, except the CED and RS counters, which a sink may clear on read, so
+  a dropped read of them can lose counts.
+
+This is the async-only part of the documentation: a sync call cannot be dropped
+mid-flight, so culvert has none of it.
 
 **Code bounded by `SendScdcClient`.** plumbob-async's `SendScdcClient` is the client's
 twin. `Scdc<T>` implements the plain `ScdcClient` for every transport and cannot also
@@ -264,7 +290,7 @@ impl<T: SendScdcTransport> SendScdcClient for SendScdc<T> {
     async fn read_flt_ready(&mut self) -> Result<bool, Self::Error> {
         ScdcClient::read_flt_ready(&mut self.0).await
     }
-    // … the other seven methods alike
+    // … the other six methods alike
 }
 ```
 

@@ -19,6 +19,31 @@ mod test_transport;
 /// `Scdc<T>` wraps an async [`ScdcTransport`] and exposes one typed `async fn` per register
 /// group. It holds no protocol state; all sequencing logic belongs in the caller.
 ///
+/// # Cancellation
+///
+/// To stop early, check a deadline or cancel signal before each call and stop there,
+/// rather than dropping a future mid-flight: no transaction is then cut short, whatever
+/// the transport does. If a future is dropped, `Scdc<T>` itself stays usable (it keeps no
+/// state between calls); the transport's documentation says what a cancelled transfer
+/// leaves behind (see `ScdcTransport`'s "Cancellation"). What a dropped call has done is
+/// then unknown, method by method:
+///
+/// - **Writes that set a whole register** — `write_source_version`, `write_tmds_config`,
+///   `write_config_0`, `write_frl_config` — may or may not have reached the sink, and are
+///   safe to repeat: writing the same value again has the same effect.
+/// - **`clear_update_flags`** writes 1 to clear, so repeating it can clear a flag the sink
+///   set again in the meantime. For `CED_Update` and `RSED_Update` that is harmless (the
+///   sink re-evaluates them about once a second); for a flag you act on, such as
+///   `FLT_Update` or `FRL_Start`, read `Update_0` again ([`read_update_flags`]) and clear
+///   only what is set, rather than repeating the clear.
+/// - **Reads** change nothing on the sink and are read again — except the error counters
+///   ([`read_ced`], [`read_rs_correction`]), which a sink may clear when they are read:
+///   a dropped read of them can lose counts.
+///
+/// [`read_update_flags`]: Self::read_update_flags
+/// [`read_ced`]: Self::read_ced
+/// [`read_rs_correction`]: Self::read_rs_correction
+///
 /// # Example
 ///
 /// ```rust
