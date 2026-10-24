@@ -32,10 +32,10 @@ mod test_transport;
 ///   `write_config_0`, `write_frl_config` — may or may not have reached the sink, and are
 ///   safe to repeat: writing the same value again has the same effect.
 /// - **`clear_update_flags`** writes 1 to clear, so repeating it can clear a flag the sink
-///   set again in the meantime. For `CED_Update` and `RSED_Update` that is harmless (the
-///   sink re-evaluates them about once a second); for a flag you act on, such as
-///   `FLT_Update` or `FRL_Start`, read `Update_0` again ([`read_update_flags`]) and clear
-///   only what is set, rather than repeating the clear.
+///   set again in the meantime. For `CED_Update` and `RSED_Update` that loses at most a
+///   hint: the counts stay in the counters, which are read regularly anyway. For a flag
+///   you act on, such as `FLT_Update` or `FRL_Start`, read `Update_0` again
+///   ([`read_update_flags`]) and clear only what is set, rather than repeating the clear.
 /// - **Reads** change nothing on the sink and are read again — except the error counters
 ///   ([`read_ced`], [`read_rs_correction`]), which a sink may clear when they are read:
 ///   a dropped read of them can lose counts.

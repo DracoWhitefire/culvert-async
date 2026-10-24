@@ -54,9 +54,9 @@ impl<T: ScdcTransport> Scdc<T> {
     /// counting starts again from it. Count afresh after retraining, a rate change or a
     /// hot plug too.
     ///
-    /// `UpdateFlags::rsed_update` means corrections are occurring, rather than that the
-    /// count changed, and a sink may never set it: read the count regularly rather than
-    /// only after the flag.
+    /// `UpdateFlags::rsed_update` is a latched hint: the sink sets it when corrections
+    /// occur, and it stays set until the source clears it; a sink may never set it. Read
+    /// the count regularly rather than only after the flag.
     ///
     /// [`read_block_bytewise`]: hdmi_hal_async::scdc::read_block_bytewise
     pub async fn read_rs_correction(

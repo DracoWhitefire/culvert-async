@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cancellation, method by method**, in `Scdc`'s documentation: stop between calls rather
   than dropping a future mid-flight; after a dropped call, whole-register writes are safe
   to repeat, a repeated `clear_update_flags` can clear a flag the sink set again (harmless
-  for `CED_Update` / `RSED_Update`, not for `FLT_Update` or `FRL_Start`: read `Update_0`
+  for `CED_Update` / `RSED_Update`, whose counts stay in the counters; not for `FLT_Update` or `FRL_Start`: read `Update_0`
   again), and reads are repeated, except the error counters, which a sink may clear on
   read.
 
@@ -39,8 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`read_ltp_requests` and `read_rs_correction` read their two registers with one
   `read_block`**, as in culvert.
 - **The CED and RS counters' documentation says how they behave**, as culvert's does
-  (saturation at 0x7FFF, clear on read possible, resets, `CED_Update` / `RSED_Update`
-  meaning errors are occurring).
+  (saturation at 0x7FFF, clear on read possible, resets, `CED_Update` / `RSED_Update` as
+  latched hints, set when errors occur and kept until cleared).
 
 - **Part of Ashlar** — the README now opens with a block naming the
   [Ashlar](https://ashlar-display.org) stack and linking the other crates in it. Keywords

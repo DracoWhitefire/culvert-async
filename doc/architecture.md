@@ -265,9 +265,9 @@ documentation says, method by method, what to do about it:
 - whole-register writes (`Source_Version`, `TMDS_Config`, `Config_0`, `Config_1`) are
   safe to repeat;
 - `clear_update_flags` is write-1-to-clear: repeating it can clear a flag the sink set
-  again meanwhile, harmless for `CED_Update` / `RSED_Update` (re-evaluated about once a
-  second), not for `FLT_Update` or `FRL_Start`, so read `Update_0` again and clear only
-  what is set;
+  again meanwhile, harmless for `CED_Update` / `RSED_Update` (latched hints: the counts
+  stay in the counters), not for `FLT_Update` or `FRL_Start`, so read `Update_0` again
+  and clear only what is set;
 - reads are repeated, except the CED and RS counters, which a sink may clear on read, so
   a dropped read of them can lose counts.
 
