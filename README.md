@@ -140,14 +140,16 @@ flowchart LR
     culvert["culvert"]
     culvert_async["culvert-async"]
     plumbob_async["plumbob-async"]
-    integration["integration layer (planned)"]
+    tmds["TMDS bring-up, async (planned)"]
+    integration["link orchestrator, async (planned)"]
 
     dt --> culvert
     hal --> culvert
     hal --> culvert_async
     culvert --> culvert_async
     culvert_async -->|"implements ScdcClient"| plumbob_async
-    plumbob_async -.->|"will implement LinkTrainer"| integration
+    tmds -.->|"will adapt Scdc, behind a feature"| culvert_async
+    integration -.->|"will drive through its own trait"| plumbob_async
 ```
 
 `plumbob-async` does not depend on `culvert-async`; culvert-async depends on plumbob-async
