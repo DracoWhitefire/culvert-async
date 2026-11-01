@@ -63,7 +63,7 @@ impl<T: ScdcTransport> Scdc<T> {
     /// ([`read_block_bytewise`]), or a bus driver that does, splits them anyway. They have
     /// no checksum, so a torn read cannot be detected.
     ///
-    /// A value the HDMI 2.1 specification leaves undefined (0x9–0xD) is
+    /// A value HDMI 2.1 leaves undefined (0x9–0xD) is
     /// [`LtpReq::Reserved`](crate::LtpReq::Reserved), not an error.
     ///
     /// [`read_block_bytewise`]: hdmi_hal_async::scdc::read_block_bytewise

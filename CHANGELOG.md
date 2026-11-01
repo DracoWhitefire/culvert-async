@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `frl_start` and `ltp_req` are removed from `StatusFlags`, and the method no longer
     reads `Status_Flags_1` or returns `ProtocolError::UnknownLtpReq`.
   - Link training pattern requests are read per lane with `read_ltp_requests`. `LtpReq`
-    follows the specification's values (LFSR 0–3 are 0x5–0x8; `AllOnes`, `AllZeros`,
+    follows HDMI 2.1's values (LFSR 0–3 are 0x5–0x8; `AllOnes`, `AllZeros`,
     `NyquistClock`, `DdeCompliance`, `FfeChange` and `RateChange` are added), and an
     undefined value is `LtpReq::Reserved(value)` rather than an error:
     `ProtocolError::UnknownLtpReq` is removed.
