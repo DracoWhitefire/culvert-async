@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- **The tests' `display-types` dev-dependency widened to `>=0.4.3, <0.6`**, matching the
+  range culvert, hdmi-hal-async and plumbob-async now accept, so the tests build against
+  whichever display-types those resolve.
+
 ## [0.3.0] - 2026-10-25
 
 ### Breaking changes

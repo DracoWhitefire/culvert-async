@@ -31,5 +31,5 @@ name = "scdc"
 path = "examples/scdc/main.rs"
 
 [dev-dependencies]
-display-types = { version = "0.4", default-features = false }
+display-types = { version = ">=0.4.3, <0.6", default-features = false }
 pollster = { version = "0.3", features = ["macro"] }
