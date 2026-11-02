@@ -32,4 +32,8 @@ None of these will be added here ahead of culvert.
   hdmi-hal-async's breaking release (below).
 - **Following hdmi-hal-async's PHY trait split** — culvert-async re-exports
   hdmi-hal-async's `ScdcTransport` and `SendScdcTransport`, so hdmi-hal-async's planned
-  breaking release is a breaking release here too; it carries `SendScdc<T>`.
+  breaking release is a breaking release here too; it carries `SendScdc<T>`. The same release
+  bounds the transport's error by `DdcError` (a kind per failure) and adds `DdcBus`:
+  culvert-async re-exports `DdcError`, `DdcErrorKind` and `NoAcknowledgeSource` next to the
+  transport traits. Over a `DdcBus`, `SendScdc<T>` runs on hdmi-hal-async's
+  `SendScdcOverDdc`, the adapter that implements `SendScdcTransport`.
