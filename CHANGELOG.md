@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-03
+
+### Internal
+
+- **The tests' `display-types` dev-dependency widened to `>=0.4.3, <0.6`**, matching the
+  range culvert, hdmi-hal-async and plumbob-async now accept, so the tests build against
+  whichever display-types those resolve.
+- **Release prep checks semver against the release as built** when the published baseline
+  no longer builds from crates.io (its dependency ranges now resolve to versions it does
+  not compile against): it compares with the release tag built from its own `Cargo.lock`.
+  A semver check that reaches no verdict now stops the job instead of counting as a
+  breaking change, which would have made the display-types widening a minor bump.
+
 ## [0.3.0] - 2026-10-25
 
 ### Breaking changes
@@ -84,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `frl_start` and `ltp_req` are removed from `StatusFlags`, and the method no longer
     reads `Status_Flags_1` or returns `ProtocolError::UnknownLtpReq`.
   - Link training pattern requests are read per lane with `read_ltp_requests`. `LtpReq`
-    follows the specification's values (LFSR 0–3 are 0x5–0x8; `AllOnes`, `AllZeros`,
+    follows HDMI 2.1's values (LFSR 0–3 are 0x5–0x8; `AllOnes`, `AllZeros`,
     `NyquistClock`, `DdeCompliance`, `FfeChange` and `RateChange` are added), and an
     undefined value is `LtpReq::Reserved(value)` rather than an error:
     `ProtocolError::UnknownLtpReq` is removed.

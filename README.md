@@ -11,15 +11,15 @@
 > **Part of [Ashlar](https://ashlar-display.org)** — a display connection stack in Rust,
 > HDMI 2.1 first: from EDID parsing through mode negotiation to FRL link training.
 >
-> [display-types](https://github.com/DracoWhitefire/display-types) ·
-> [piaf](https://github.com/DracoWhitefire/piaf) ·
-> [concordance](https://github.com/DracoWhitefire/concordance) ·
-> [cartouche](https://github.com/DracoWhitefire/cartouche) ·
-> [culvert](https://github.com/DracoWhitefire/culvert) ·
+> [display-types](https://github.com/ashlar-display/display-types) ·
+> [piaf](https://github.com/ashlar-display/piaf) ·
+> [concordance](https://github.com/ashlar-display/concordance) ·
+> [cartouche](https://github.com/ashlar-display/cartouche) ·
+> [culvert](https://github.com/ashlar-display/culvert) ·
 > **culvert-async** ·
-> [plumbob](https://github.com/DracoWhitefire/plumbob) ·
-> [hdmi-hal](https://github.com/DracoWhitefire/hdmi-hal) ·
-> [hdmi-hal-i2c-dev](https://github.com/DracoWhitefire/hdmi-hal-i2c-dev)
+> [plumbob](https://github.com/ashlar-display/plumbob) ·
+> [hdmi-hal](https://github.com/ashlar-display/hdmi-hal) ·
+> [hdmi-hal-i2c-dev](https://github.com/ashlar-display/hdmi-hal-i2c-dev)
 
 Async typed access to the HDMI 2.1 SCDC register map.
 
@@ -140,14 +140,16 @@ flowchart LR
     culvert["culvert"]
     culvert_async["culvert-async"]
     plumbob_async["plumbob-async"]
-    integration["integration layer (planned)"]
+    tmds["TMDS bring-up, async (planned)"]
+    integration["link orchestrator, async (planned)"]
 
     dt --> culvert
     hal --> culvert
     hal --> culvert_async
     culvert --> culvert_async
     culvert_async -->|"implements ScdcClient"| plumbob_async
-    plumbob_async -.->|"will implement LinkTrainer"| integration
+    tmds -.->|"will adapt Scdc, behind a feature"| culvert_async
+    integration -.->|"will drive through its own trait"| plumbob_async
 ```
 
 `plumbob-async` does not depend on `culvert-async`; culvert-async depends on plumbob-async

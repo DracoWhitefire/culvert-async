@@ -61,7 +61,7 @@ jobs:
       # stable toolchains. (Previously ~/.cargo/bin was restored from the Actions
       # cache, which also holds the cargo/rustc proxies used by this job.)
       - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-semver-checks
 
@@ -75,15 +75,70 @@ jobs:
 
           BUMP="${{ inputs.bump }}"
 
+          # Builds rustdoc JSON for v$CURRENT as released (its own Cargo.lock) and for
+          # develop, once. Errors exit explicitly: callers run inside `if`, where
+          # `bash -e` does not stop on a failing command.
+          locked_rustdoc() {
+            [ -n "${BASELINE_JSON:-}" ] && return 0
+            local crate
+            crate=$(grep '^name = ' Cargo.toml | head -1 | sed 's/name = "\(.*\)"/\1/' | tr - _)
+            if ! git rev-parse -q --verify "refs/tags/v$CURRENT" >/dev/null; then
+              echo "::error::Tag v$CURRENT not found, so the released baseline cannot be built."
+              exit 1
+            fi
+            git worktree add -q --detach "$RUNNER_TEMP/baseline" "v$CURRENT" || exit 1
+            for side in baseline current; do
+              manifest=Cargo.toml
+              [ "$side" = baseline ] && manifest="$RUNNER_TEMP/baseline/Cargo.toml"
+              if ! RUSTC_BOOTSTRAP=1 cargo rustdoc --locked --all-features \
+                  --manifest-path "$manifest" --target-dir "$RUNNER_TEMP/$side-target" \
+                  -- -Zunstable-options --output-format json; then
+                echo "::error::Building rustdoc JSON for the $side failed."
+                exit 1
+              fi
+            done
+            BASELINE_JSON="$RUNNER_TEMP/baseline-target/doc/$crate.json"
+            CURRENT_JSON="$RUNNER_TEMP/current-target/doc/$crate.json"
+          }
+
+          # Succeeds when the API changes fit release type $1 and fails when they need
+          # a higher one. A check that reaches no verdict aborts the job rather than
+          # count as one. When the baseline from crates.io no longer builds (its
+          # dependency ranges now resolve to versions it does not compile against),
+          # the check runs again against v$CURRENT built with its own Cargo.lock,
+          # all features on both sides.
+          semver_check() {
+            local log="$RUNNER_TEMP/semver-$1.log"
+            if cargo semver-checks --release-type "$1" >"$log" 2>&1; then
+              cat "$log"; return 0
+            fi
+            cat "$log"
+            grep -q 'semver requires new' "$log" && return 1
+            if ! grep -q 'failed to build rustdoc' "$log"; then
+              echo "::error::cargo semver-checks reached no verdict for '$1'; see the log above."
+              exit 1
+            fi
+            echo "The crates.io baseline does not build; checking against v$CURRENT built with its own Cargo.lock."
+            locked_rustdoc
+            if cargo semver-checks --release-type "$1" \
+                --baseline-rustdoc "$BASELINE_JSON" --current-rustdoc "$CURRENT_JSON" >"$log" 2>&1; then
+              cat "$log"; return 0
+            fi
+            cat "$log"
+            grep -q 'semver requires new' "$log" && return 1
+            echo "::error::cargo semver-checks reached no verdict for '$1' against the locked baseline; see the log above."
+            exit 1
+          }
+
           if [ "$BUMP" = "auto" ]; then
             echo "Running cargo semver-checks to determine required bump..."
-            if cargo semver-checks --release-type patch; then
+            if semver_check patch; then
               BUMP=patch
             elif [ "$MAJOR" = "0" ]; then
               # For 0.x crates the minor bump is the highest meaningful breaking
               # release; bumping to 1.0.0 is a deliberate stabilisation decision.
               BUMP=minor
-            elif cargo semver-checks --release-type minor; then
+            elif semver_check minor; then
               BUMP=minor
             else
               BUMP=major
@@ -95,7 +150,7 @@ jobs:
               exit 1
             fi
             echo "Validating requested bump type: $BUMP"
-            if ! cargo semver-checks --release-type "$BUMP"; then
+            if ! semver_check "$BUMP"; then
               echo "::error::semver-checks reports '$BUMP' is insufficient for the API changes present. Choose a higher bump type."
               exit 1
             fi
