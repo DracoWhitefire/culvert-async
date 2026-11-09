@@ -10,7 +10,7 @@ The register map itself is not duplicated. Every address, bit position and proto
 lives in [`culvert::codec`], the I/O-free part of culvert; culvert-async's methods only
 perform the reads and writes, `.await`ing the transport, and hand the bytes to `codec`.
 The sync and async clients therefore share one register map: a fix in culvert reaches
-both. The stack design document's "Sync and Async Companions" section records why.
+both.
 
 The crate also implements `plumbob_async::ScdcClient` for `Scdc<T>`, gated behind a
 `plumbob-async` cargo feature: the async counterpart to culvert's `plumbob` feature, and
@@ -300,7 +300,7 @@ impl<T: SendScdcTransport> SendScdcClient for SendScdc<T> {
 
 culvert-async does not ship that wrapper yet; it will when a consumer generic over
 `SendScdcClient` needs it, or when return-type notation is decided against (see
-`doc/roadmap.md`; recorded in the stack design document, "Sync and Async Companions").
+`doc/roadmap.md`).
 
 ---
 
