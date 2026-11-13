@@ -62,8 +62,9 @@ jobs:
       - name: Clippy (plumbob-async feature)
         run: cargo clippy --locked --all-targets --features plumbob-async -- -D warnings
 
+      # docs.rs builds with every feature, so the docs are checked the same way.
       - name: Docs
-        run: cargo rustdoc --locked --all-features -- -D missing_docs
+        run: cargo rustdoc --locked --all-features -- -D warnings
 
       - name: Test
         run: cargo test --locked
