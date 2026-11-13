@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`doc/testing.md` describes the builds** CI runs the tests in, and the README doctest.
 - **`CONTRIBUTING.md` matches the CI checks**: clippy over all targets with and without the
   `plumbob-async` feature, rustdoc with `-D warnings`, the bare-metal builds and the MSRV.
+- **The README's documentation list links `CONTRIBUTING.md`.**
 
 ## [0.3.1] - 2026-11-03
 

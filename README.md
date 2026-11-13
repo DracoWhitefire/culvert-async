@@ -184,6 +184,7 @@ only with the optional `plumbob-async` feature, which makes `Scdc<T>` implement
   feature, and design principles
 - [`doc/testing.md`](doc/testing.md) — testing strategy, transport harness, and CI expectations
 - [`doc/roadmap.md`](doc/roadmap.md) — deferred register groups and planned API surfaces
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
 
 ## Verifying releases
 
