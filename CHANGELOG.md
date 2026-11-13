@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`doc/setup.md` lists the checks CI runs**: clippy over all targets with and without the
   `plumbob-async` feature, rustdoc with `-D warnings`, the bare-metal `no_std` builds and
   the MSRV check.
+- **`doc/testing.md` describes the builds** CI runs the tests in, and the README doctest.
 
 ## [0.3.1] - 2026-11-03
 

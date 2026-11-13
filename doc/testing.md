@@ -94,6 +94,12 @@ register map.
 cargo run --example scdc
 ```
 
+## Builds
+
+CI runs the tests with and without the `plumbob-async` feature, on stable and on the MSRV,
+and builds both for `thumbv7em-none-eabi`, which has no `std`. The README's example runs
+as a doctest on `pollster` against a hidden transport whose registers all read zero.
+
 ## Coverage
 
 CI measures line coverage with `cargo-llvm-cov` over the default features and the
