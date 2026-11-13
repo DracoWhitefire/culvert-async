@@ -98,7 +98,8 @@ cargo run --example scdc
 
 CI runs the tests with and without the `plumbob-async` feature, on stable and on the MSRV,
 and builds both for `thumbv7em-none-eabi`, which has no `std`. The README's example runs
-as a doctest on `pollster` against a hidden transport whose registers all read zero.
+as a doctest on `pollster` against a hidden sink that is ready for FRL training, has `FLT_update` pending and
+reports errors on lane 0, so every branch of it runs and its writes are asserted.
 
 ## Coverage
 

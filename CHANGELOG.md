@@ -15,8 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Internal
 
 - **The README's Rust example runs as a doctest** (`ReadmeDoctests` in `lib.rs`, compiled
-  only for `cargo test`), on `pollster` against a hidden transport whose registers all
-  read zero.
+  only for `cargo test`), on `pollster` against a hidden sink that is ready for FRL training, has `FLT_update`
+  pending and reports errors on lane 0, so every branch of it runs; hidden asserts check
+  what it writes and reads.
 - **The published `.crate` holds only what the crate needs**: `include` in `Cargo.toml`
   limits it to the sources, `doc/`, the README, changelog and license; it also shipped the
   CI workflows, Dependabot configuration, coverage baseline, tests and example.
