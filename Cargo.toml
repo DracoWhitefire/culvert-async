@@ -10,6 +10,7 @@ repository = "https://github.com/ashlar-display/culvert-async"
 homepage = "https://ashlar-display.org"
 keywords = ["ashlar", "hdmi", "no-std", "scdc", "async"]
 categories = ["hardware-support", "embedded", "no-std", "no-std::no-alloc", "asynchronous"]
+include = ["src/**", "doc/**", "README.md", "CHANGELOG.md", "LICENSE"]
 
 [package.metadata.docs.rs]
 all-features = true

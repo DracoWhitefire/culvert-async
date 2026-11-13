@@ -10,16 +10,7 @@
 
 > **Part of [Ashlar](https://ashlar-display.org)** — a display connection stack in Rust,
 > HDMI 2.1 first: from EDID parsing through mode negotiation to FRL link training.
->
-> [display-types](https://github.com/ashlar-display/display-types) ·
-> [piaf](https://github.com/ashlar-display/piaf) ·
-> [concordance](https://github.com/ashlar-display/concordance) ·
-> [cartouche](https://github.com/ashlar-display/cartouche) ·
-> [culvert](https://github.com/ashlar-display/culvert) ·
-> **culvert-async** ·
-> [plumbob](https://github.com/ashlar-display/plumbob) ·
-> [hdmi-hal](https://github.com/ashlar-display/hdmi-hal) ·
-> [hdmi-hal-i2c-dev](https://github.com/ashlar-display/hdmi-hal-i2c-dev)
+> See [all crates](https://ashlar-display.org/crates.html).
 
 Async typed access to the HDMI 2.1 SCDC register map.
 
@@ -39,6 +30,33 @@ cargo add culvert-async
 Wrap your async transport in `Scdc` and await typed methods:
 
 ```rust
+# use core::convert::Infallible;
+# // A sink ready for FRL training, with FLT_update pending and 5 errors on lane 0.
+# struct Registers([u8; 256]);
+# impl culvert_async::ScdcTransport for Registers {
+#     type Error = Infallible;
+#     async fn read(&self, reg: u8) -> Result<u8, Infallible> { Ok(self.0[reg as usize]) }
+#     async fn write(&mut self, reg: u8, value: u8) -> Result<(), Infallible> {
+#         if reg == 0x10 {
+#             self.0[0x10] &= !value; // Update_0: write 1 to clear
+#         } else {
+#             self.0[reg as usize] = value;
+#         }
+#         Ok(())
+#     }
+#     async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Infallible> {
+#         hdmi_hal_async::scdc::read_block_bytewise(self, reg, buf).await
+#     }
+# }
+# fn main() -> Result<(), culvert_async::ScdcError<Infallible>> {
+# pollster::block_on(async {
+# let mut regs = [0u8; 256];
+# regs[0x40] = 0x40; // Status_Flags_0: FLT_ready
+# regs[0x10] = 0x20; // Update_0: FLT_update
+# regs[0x50] = 0x05; // lane 0 errors, low byte
+# regs[0x51] = 0x80; // lane 0 errors, high byte: valid
+# regs[0x56] = 0x7B; // CED checksum: 0x50..=0x56 sum to zero
+# let transport = Registers(regs);
 use culvert_async::{ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
 
 let mut scdc = Scdc::new(transport);
@@ -80,6 +98,16 @@ for warning in reading.iter_warnings() {
 if let Some(count) = reading.counters.lane0 {
     // lane 0 has a valid error count
 }
+# assert_eq!(reading.counters.lane0.map(|c| c.value()), Some(5));
+# assert_eq!(reading.iter_warnings().count(), 0);
+# let regs = scdc.into_transport().0;
+# assert_eq!(regs[0x02], 1); // Source_Version written
+# assert_eq!(regs[0x20], 0x03); // TMDS_Config: scrambling, 1/40 clock ratio
+# assert_eq!(regs[0x31], 0x36); // Config_1: 12 Gbps × 4 lanes, FFE levels 3
+# assert_eq!(regs[0x10] & 0x20, 0); // FLT_update acknowledged
+# Ok(())
+# })
+# }
 ```
 
 To stop early, check a deadline before each call rather than dropping a future in flight;
@@ -173,6 +201,7 @@ only with the optional `plumbob-async` feature, which makes `Scdc<T>` implement
   feature, and design principles
 - [`doc/testing.md`](doc/testing.md) — testing strategy, transport harness, and CI expectations
 - [`doc/roadmap.md`](doc/roadmap.md) — deferred register groups and planned API surfaces
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
 
 ## Verifying releases
 
