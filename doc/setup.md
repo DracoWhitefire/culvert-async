@@ -46,7 +46,7 @@ The MSRV is `rust-version` in `Cargo.toml`. CI checks it with
 toolchain:
 
 ```sh
-cargo install cargo-msrv --locked
+cargo install cargo-msrv --version 0.19.6 --locked
 cargo msrv verify -- cargo test --locked
 cargo msrv verify -- cargo test --locked --features plumbob-async
 cargo msrv verify --target thumbv7em-none-eabi \
