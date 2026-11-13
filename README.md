@@ -39,6 +39,23 @@ cargo add culvert-async
 Wrap your async transport in `Scdc` and await typed methods:
 
 ```rust
+# use core::convert::Infallible;
+# // A sink whose SCDC registers all read zero.
+# struct Registers([u8; 256]);
+# impl culvert_async::ScdcTransport for Registers {
+#     type Error = Infallible;
+#     async fn read(&self, reg: u8) -> Result<u8, Infallible> { Ok(self.0[reg as usize]) }
+#     async fn write(&mut self, reg: u8, value: u8) -> Result<(), Infallible> {
+#         self.0[reg as usize] = value;
+#         Ok(())
+#     }
+#     async fn read_block(&self, reg: u8, buf: &mut [u8]) -> Result<(), Infallible> {
+#         hdmi_hal_async::scdc::read_block_bytewise(self, reg, buf).await
+#     }
+# }
+# fn main() -> Result<(), culvert_async::ScdcError<Infallible>> {
+# pollster::block_on(async {
+# let transport = Registers([0; 256]);
 use culvert_async::{ClearableUpdateFlags, FfeLevels, FrlConfig, FrlRate, Scdc, TmdsConfig};
 
 let mut scdc = Scdc::new(transport);
@@ -80,6 +97,9 @@ for warning in reading.iter_warnings() {
 if let Some(count) = reading.counters.lane0 {
     // lane 0 has a valid error count
 }
+# Ok(())
+# })
+# }
 ```
 
 To stop early, check a deadline before each call rather than dropping a future in flight;

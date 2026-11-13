@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- **The README's Rust example runs as a doctest** (`ReadmeDoctests` in `lib.rs`, compiled
+  only for `cargo test`), on `pollster` against a hidden transport whose registers all
+  read zero.
+
 ## [0.3.1] - 2026-11-03
 
 ### Internal

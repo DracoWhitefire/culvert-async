@@ -33,3 +33,8 @@ pub use hdmi_hal_async::scdc::ScdcTransport;
 /// The transport's `Send` twin, re-exported from `hdmi-hal-async`: bound generic code by it
 /// to spawn work through `Scdc<T>` on a multi-threaded executor.
 pub use hdmi_hal_async::scdc::SendScdcTransport;
+
+// Compiles and runs the README's examples as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
