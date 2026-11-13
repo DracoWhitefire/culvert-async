@@ -56,6 +56,24 @@ is fine.
   baseline (stored in `.coverage-baseline`). New register coverage without tests will
   likely trip this.
 
+## Publishing and downstream dependencies
+
+culvert-async builds on [culvert](https://github.com/ashlar-display/culvert) and
+[hdmi-hal-async](https://github.com/ashlar-display/hdmi-hal-async) and re-exports the
+types its API uses (culvert's register types and errors, and the async transport traits);
+with the `plumbob-async` feature, its `Scdc` implements
+[plumbob-async](https://github.com/ashlar-display/plumbob-async)'s `ScdcClient`. Those
+crates' versions are therefore part of culvert-async's API: moving to a breaking release
+of one of them is a breaking release of culvert-async, unless the version requirement keeps
+accepting the old release as well. Other
+[Ashlar crates](https://ashlar-display.org/crates.html) depend on culvert-async as a
+versioned crate dependency. Changes that add or modify public API must be merged, tagged,
+and published to crates.io before downstream crates can adopt them. The workflow is:
+
+1. Merge and tag a release in this repo (`vX.Y.Z`).
+2. The publish CI workflow uploads the new version to crates.io.
+3. Update the version constraint in the downstream crate's `Cargo.toml`.
+
 ## Review process
 
 PRs are reviewed on a best-effort basis. Expect feedback within a few days; if you haven't
