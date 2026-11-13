@@ -26,8 +26,11 @@ is fine.
 
 ## Coding standards
 
-- Run `cargo fmt` and `cargo clippy --all-features -- -D warnings` before pushing.
-- Public items need rustdoc comments (`cargo rustdoc --all-features -- -D missing_docs` must pass).
+- Run `cargo fmt` and `cargo clippy --all-targets -- -D warnings` before pushing; CI runs
+  clippy with and without the `plumbob-async` feature ([doc/setup.md](doc/setup.md) lists
+  the commands).
+- Public items need rustdoc comments, and intra-doc links must resolve
+  (`cargo rustdoc --all-features -- -D warnings` must pass).
 - Follow the existing patterns in the codebase — see [`doc/architecture.md`](doc/architecture.md)
   for the design principles behind them.
 - `#![forbid(unsafe_code)]` is enforced; no unsafe code.
@@ -44,9 +47,11 @@ is fine.
 - Tests are expected for new register coverage. Pre-loading a `TestTransport` and
   asserting on the decoded struct is the established pattern; see the existing `client`
   modules for examples. Tests use `#[pollster::test]` and `async fn` bodies.
-- CI must be green before a PR can merge: fmt, clippy, docs, all test and build targets,
-  and coverage must not drop more than 0.1% below the baseline (stored in
-  `.coverage-baseline`). New register coverage without tests will likely trip this.
+- CI must be green before a PR can merge: fmt, clippy, docs, the tests with and without
+  the `plumbob-async` feature, the example, the bare-metal `no_std` builds, the same tests
+  and builds on the MSRV (Rust 1.85), and coverage must not drop more than 0.1% below the
+  baseline (stored in `.coverage-baseline`). New register coverage without tests will
+  likely trip this.
 
 ## Review process
 
