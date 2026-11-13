@@ -34,6 +34,9 @@ is fine.
 - Follow the existing patterns in the codebase — see [`doc/architecture.md`](doc/architecture.md)
   for the design principles behind them.
 - `#![forbid(unsafe_code)]` is enforced; no unsafe code.
+- A claim about HDMI behaviour (a rule, a default, a threshold, a register encoding) cites
+  at least two independent public implementations (repository, commit, file and line).
+  Where implementations differ, the behaviour is a setting with the majority as default.
 - Keep `no_std` compatibility. `Scdc<T>` and all output types must compile without `alloc`
   or `std`.
 - culvert-async adds no protocol logic. Bit decoding, register encoding, and error
@@ -49,7 +52,7 @@ is fine.
   modules for examples. Tests use `#[pollster::test]` and `async fn` bodies.
 - CI must be green before a PR can merge: fmt, clippy, docs, the tests with and without
   the `plumbob-async` feature, the example, the bare-metal `no_std` builds, the same tests
-  and builds on the MSRV (Rust 1.85), and coverage must not drop more than 0.1% below the
+  and builds on the MSRV (Rust 1.85), and coverage must not drop more than 0.1 percentage points below the
   baseline (stored in `.coverage-baseline`). New register coverage without tests will
   likely trip this.
 
