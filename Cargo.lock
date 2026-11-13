@@ -10,11 +10,11 @@ checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
 
 [[package]]
 name = "culvert"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4bd1f36b28e901afa9acb76ecb7d294239bb6d44d9e88b1844169b0fe47135"
+checksum = "4e1239ecddaefb62049bfd6eefac04bf6559da995adc60d48199809440af83cd"
 dependencies = [
- "display-types",
+ "display-types 0.5.1",
  "hdmi-hal",
  "plumbob",
 ]
@@ -24,7 +24,7 @@ name = "culvert-async"
 version = "0.3.1"
 dependencies = [
  "culvert",
- "display-types",
+ "display-types 0.5.1",
  "hdmi-hal-async",
  "plumbob-async",
  "pollster",
@@ -40,21 +40,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "display-types"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2a14d4076790bab27f37a48c0e8fb29993ec8254effcb930b9dab9df29040e2"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "hdmi-hal"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33358dac26d307b3111dec4109fb11f3be6470d688f686e5979879822a76c0bf"
 dependencies = [
- "display-types",
+ "display-types 0.4.3",
 ]
 
 [[package]]
 name = "hdmi-hal-async"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d44e02c280b1761272f6008cd2d8c55c3d7aa27fa7012a6de13b8f1da5ac6ba"
+checksum = "d1e16291988bf1db6ccc1c99bcb353f3f6b18e80ba9c1b90de908bbd59f033f1"
 dependencies = [
- "display-types",
+ "display-types 0.5.1",
  "hdmi-hal",
 ]
 
@@ -64,17 +73,17 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddccd575b53d4b3e2d45e3c7d18388eed8d2fac5966fad30118cfb109c9d8289"
 dependencies = [
- "display-types",
+ "display-types 0.4.3",
  "hdmi-hal",
 ]
 
 [[package]]
 name = "plumbob-async"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "982d57fa38ec50d3927863127dd3b3af52135e22be321f1b0f5e95f77cd8c151"
+checksum = "aecd6ed8247d687f112dc9d4c1b1bdcaa5e06e7db48d5d2c536a859da257d0ff"
 dependencies = [
- "display-types",
+ "display-types 0.5.1",
  "hdmi-hal-async",
  "plumbob",
 ]
