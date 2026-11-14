@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`CONTRIBUTING.md` has a publishing section**: the crates culvert-async builds on and
   re-exports, when their breaking releases are culvert-async's, and the order in which
   releases reach the crates that depend on it.
+- **`doc/setup.md` says to measure the coverage baseline with the Rust version CI uses**:
+  Rust versions count lines differently, so a baseline measured with another version can
+  fail CI without a change in coverage.
 
 ## [0.3.1] - 2026-11-03
 
